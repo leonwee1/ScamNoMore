@@ -80,6 +80,17 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return res.end();
   }
 
+  // Friendly landing page at the root — visiting the base URL in a browser is
+  // the first thing anyone does, and a bare 404 there looks like a broken deploy.
+  if (path === '/' || path === '') {
+    return send(res, 200, {
+      service: 'ScamNoMore backend',
+      status: 'running',
+      hint: 'This API is used by the ScamNoMore mobile app. Open /health for status.',
+      endpoints: ['GET /health', ...Object.keys(ROUTES).map((r) => `POST ${r}`)],
+    });
+  }
+
   // Health check is public so Render's monitor (and you) can reach it.
   // It never reveals the key itself, only whether one is present.
   if (path === '/health') {
