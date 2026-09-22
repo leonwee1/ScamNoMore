@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "scamnomore",
-    "newArchEnabled": false,
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#0B1B2B"

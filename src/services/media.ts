@@ -16,7 +16,7 @@ export async function pickImage(fromCamera: boolean): Promise<string | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) return null;
   const res = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    mediaTypes: ['images'],
     quality: 0.7,
   });
   return res.canceled ? null : res.assets[0].uri;
@@ -26,7 +26,7 @@ export async function pickVideo(): Promise<string | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) return null;
   const res = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+    mediaTypes: ['videos'],
     videoMaxDuration: 300, // 5 minutes per wireframe
     quality: 0.7,
   });
@@ -41,7 +41,7 @@ export async function pickAudio(): Promise<string | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) return null;
   const res = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.All,
+    mediaTypes: ['images', 'videos'],
     quality: 0.7,
   });
   return res.canceled ? null : res.assets[0].uri;
