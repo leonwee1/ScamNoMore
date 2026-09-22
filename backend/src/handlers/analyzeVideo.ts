@@ -1,27 +1,30 @@
-import type { APIGatewayProxyHandler } from 'aws-lambda';
-import { analyzeWithBedrock } from '../lib/bedrock';
-import { badRequest, ok, parseBody, serverError } from '../lib/http';
-import { analyzeVideoWithRekognition } from '../lib/rekognitionVideo';
-import { MEDIA_BUCKET } from '../lib/s3';
+import { badRequest, filenameFor, Handler, mimeOf, ok, serverError } from '../lib/http';
+import { analyzeTextEvidence, noSpeechResult, transcribeMedia } from '../lib/openai';
 
 /**
  * POST /analyze/video
- * Body: { key: string }
+ * Body: raw video bytes, Content-Type: video/mp4 | video/quicktime | video/webm
  *
- * Pipeline: Rekognition Video (StartTextDetection + StartLabelDetection,
- * polled to completion) aggregates on-screen text and labels across sampled
- * frames, then Bedrock reasons over that evidence to produce the verdict.
+ * Whisper transcribes the video's AUDIO TRACK (no frame extraction required),
+ * then gpt-4o analyses the transcript for scam indicators. Most scam videos —
+ * fake testimonials, investment pitches, voice-overs — carry their message in
+ * speech, so this captures the substance.
  */
-export const handler: APIGatewayProxyHandler = async (event) => {
+export const handler: Handler = async (req) => {
   try {
-    const { key } = parseBody<{ key?: string }>(event);
-    if (!key) return badRequest('Missing "key" (upload the video first via /upload-url)');
-    if (!MEDIA_BUCKET) return serverError(new Error('MEDIA_BUCKET not configured'));
+    if (!req.raw.byteLength) return badRequest('Empty video body');
 
-    const signals = await analyzeVideoWithRekognition({ bucket: MEDIA_BUCKET, key });
-    const result = await analyzeWithBedrock(signals);
+    const mime = mimeOf(req.contentType, 'video/mp4');
+    if (!mime.startsWith('video/')) {
+      return badRequest(`Expected a video Content-Type, got "${mime}"`);
+    }
 
-    return ok(result);
+    const transcript = await transcribeMedia(req.raw, filenameFor(mime, 'mp4'), mime);
+
+    // A silent video yields nothing to analyse — say so rather than guessing.
+    if (!transcript) return ok(noSpeechResult('video'));
+
+    return ok(await analyzeTextEvidence(transcript, 'video'));
   } catch (err) {
     return serverError(err);
   }

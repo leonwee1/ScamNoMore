@@ -4,22 +4,22 @@ import { RiskLevel } from '../theme';
  * Shared analysis types.
  *
  * NOTE: there is deliberately NO on-device scam heuristic here. Every verdict is
- * produced by AWS Bedrock (see src/services/aws.ts and backend/src/lib/bedrock.ts)
- * over evidence from Rekognition / Rekognition Video / Transcribe. Keeping a
- * local "guess" engine would risk showing users a fabricated analysis, so the
- * app either shows a real AWS result or a clear error.
+ * produced by OpenAI via the backend (see src/services/api.ts and
+ * backend/src/lib/openai.ts). Keeping a local "guess" engine would risk showing
+ * users a fabricated analysis, so the app either shows a real model result or a
+ * clear error.
  */
 
-/** Evidence gathered by AWS before the LLM reasoned about it (for transparency). */
+/** Evidence the model was given, echoed back for transparency/auditing. */
 export interface AnalysisSignals {
-  ocrText?: string;
-  labels?: string[];
-  moderationLabels?: string[];
-  hasQrCode?: boolean;
-  isScreenshot?: boolean;
+  source: 'image' | 'video' | 'voice' | 'text';
+  /** Speech transcribed by Whisper (voice + video flows). */
   transcript?: string;
-  frameCount?: number;
-  source: 'rekognition-image' | 'rekognition-video' | 'transcribe' | 'text';
+  /** Text the user supplied or edited. */
+  text?: string;
+  durationSeconds?: number;
+  /** Set when a video's audio track contained no speech. */
+  noSpeechDetected?: boolean;
 }
 
 /**

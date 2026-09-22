@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { AnalysisResult } from '../services/analysis';
-import { probabilityLabel } from '../services/aws';
+import { probabilityLabel } from '../services/api';
 import { spacing } from '../theme';
 import { RiskGauge } from './RiskGauge';
 import { Body, Card, Muted, SubHeading } from './ui';

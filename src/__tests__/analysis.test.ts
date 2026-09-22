@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { riskFromProbability } from '../services/analysis';
-import { BackendNotConfiguredError, contentTypeFor, probabilityLabel } from '../services/aws';
+import { BackendNotConfiguredError, contentTypeFor, probabilityLabel } from '../services/api';
 
 describe('riskFromProbability', () => {
   it('maps probabilities to levels', () => {
@@ -64,8 +64,8 @@ describe('no mock analyzers remain', () => {
   const read = (rel: string) =>
     readFileSync(join(__dirname, '..', 'services', rel), 'utf8');
 
-  it('aws.ts contains no hardcoded sample OCR/transcript text', () => {
-    const src = read('aws.ts');
+  it('api.ts contains no hardcoded sample OCR/transcript text', () => {
+    const src = read('api.ts');
     expect(src).not.toMatch(/MOCK_OCR_SAMPLES/);
     expect(src).not.toMatch(/lucky draw/i);
     expect(src).not.toMatch(/hashPick/);
@@ -80,17 +80,24 @@ describe('no mock analyzers remain', () => {
   });
 
   it('every analyzer routes through the backend API', () => {
-    const src = read('aws.ts');
+    const src = read('api.ts');
     for (const route of [
       '/analyze/image',
       '/analyze/video',
       '/analyze/text',
       '/transcribe',
       '/chat',
-      '/upload-url',
     ]) {
       expect(src).toContain(route);
     }
+  });
+
+  it('never references an API key or OpenAI directly from the app', () => {
+    // The key must live only on the backend; anything bundled is extractable.
+    const src = read('api.ts');
+    expect(src).not.toMatch(/sk-[a-zA-Z0-9]/);
+    expect(src).not.toMatch(/OPENAI_API_KEY/);
+    expect(src).not.toMatch(/api\.openai\.com/);
   });
 
   it('throws a clear error when the backend is unconfigured', () => {

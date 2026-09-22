@@ -1,88 +1,88 @@
 # ScamNoMore
 
 A mobile-first, cross-platform scam-detection and awareness app built with
-**React Native + TypeScript on Expo (SDK 54)** — runs in **Expo Go** with no
-custom native modules. It analyzes suspicious **images, voice, and video**, lets
-users **search** a database of Singapore scam cases, **report** new incidents
+**React Native + TypeScript on Expo (SDK 54)** — runs in **Expo Go**, no custom
+native modules. It analyzes suspicious **images, voice, and video** with OpenAI,
+lets users **search** a database of Singapore scam cases, **report** new incidents
 into the same dataset, join **community** chat rooms, and chat with a
 **scam-awareness bot** — in **4 languages** (English, 中文, Bahasa Melayu, தமிழ்).
 
-It is seeded with a **5,000-row Singapore scam dataset** (scam type, keywords,
-town, specific place, source, year) and integrates **AWS DynamoDB, Rekognition,
-Rekognition Video, Transcribe, and Bedrock** — with deterministic on-device
-mocks so it demos instantly with zero cloud setup.
+It ships with a **5,000-row Singapore scam dataset** (scam type, keywords, town,
+specific place, source, year).
+
+> **An OpenAI API key is required.** All analysis and the chatbot run on OpenAI —
+> there is no mock/offline analyzer. Put your key in `backend/.env`, start the
+> backend, and set `apiBaseUrl` in `app.json`. Until then the app shows a warning
+> banner and analysis fails with a clear message rather than inventing results.
+> Full steps: **[`docs/SETUP.md`](docs/SETUP.md)** (about 3 minutes).
 
 ## Stack
 
 - Expo SDK **54** · React Native **0.81** · React **19** · TypeScript
 - React Navigation (bottom tabs + native stack)
-- `expo-image-picker` (image/video), `expo-audio` (voice recording)
-- AWS SDK v3 (`@aws-sdk/client-dynamodb`, `@aws-sdk/lib-dynamodb`) — Node/Lambda only
+- `expo-image-picker` (image/video), `expo-audio` (recording), `react-native-svg` (gauge)
+- Backend: Node + TypeScript, **OpenAI** `gpt-4o` (vision + text) and `whisper-1`
 
 ## Quick start
 
 ```bash
+# 1. Backend (holds the OpenAI key)
+cd backend
 npm install
-npm start          # then press 'i' (iOS), 'a' (Android), or scan the QR in Expo Go
+copy .env.example .env        # paste your key into .env
+npm start                     # http://localhost:3000
+
+# 2. App — set apiBaseUrl in app.json to your LAN IP, e.g. http://172.20.10.11:3000
+cd ..
+npm install
+npx expo start -c
 ```
 
-> **AWS is required for analysis.** Every scam verdict and chatbot reply comes
-> from AWS Bedrock — there is no mock/offline analyzer. Until you set
-> `apiBaseUrl` in `app.json`, the app shows a warning banner and analysis calls
-> fail with a clear message instead of returning invented results.
-> Setup takes a few minutes: see [`docs/AWS_SETUP.md`](docs/AWS_SETUP.md)
-> (Option A runs the backend locally, no deployment needed).
+Scan the QR code in Expo Go. See [`docs/SETUP.md`](docs/SETUP.md) for finding your
+LAN IP and troubleshooting.
 
-If the phone cannot reach the dev server over Wi-Fi (or you are on a phone
-hotspot / a network with client isolation), start in tunnel mode:
+### Commands
 
 ```bash
-npx expo start --tunnel
-```
-
-### Other commands
-
-```bash
-npm test           # run unit tests (Jest) — 18 tests
-npm run typecheck  # TypeScript type check
-npm run seed       # load the 5000 rows into DynamoDB (needs AWS creds)
+npm test           # app unit tests (36)
+npm run typecheck  # app type check
+cd backend && npm test        # backend unit tests (28)
+cd backend && npm run typecheck
 node scripts/buildMockDataset.js   # regenerate src/data/scams.json (5000 rows)
 ```
+
+## How analysis works
+
+| Feature | Pipeline |
+| --- | --- |
+| Take picture / Upload image | **`gpt-4o` vision** — reads all text in the image *and* judges visual scam cues (implausible discounts, fake urgency banners, fake news/brand mastheads, fake endorsements, fake login/payment screens, QR codes) |
+| Upload audio / Say what happened | **`whisper-1`** transcribes (auto language detection) → user edits the transcript → **`gpt-4o`** analyses it |
+| Upload video | **`whisper-1`** transcribes the **audio track** → **`gpt-4o`** analyses it. No frame extraction; a silent video honestly reports "no speech detected" |
+| Chatbot | **`gpt-4o`** with conversation history and a Singapore-specific system prompt |
+
+Every result returns a calibrated `probability`, a `riskLevel`, the best-fit
+`scamType`, specific `reasons` citing the actual evidence, `advice`, and a
+`signals` object carrying the raw transcript/text so you can audit exactly what
+the model was shown.
+
+Media is POSTed as raw bytes with its `Content-Type` — no object storage, no
+presigned URLs, no multipart parsing. The API key never leaves the backend.
 
 ## Screens (mapped to the wireframes)
 
 - **Home** — "Please select what to analyze": (1) take picture, (2) upload image,
   (3) upload audio, (4) say what happened / record voice, (5) upload video.
   Global **Chatbot** button + language switcher on every screen.
-- **Image analysis** — Rekognition text/moderation → scam probability, reasoning,
-  advice, "Check another".
-- **Voice analysis** — record (max 5 min) or upload → Transcribe → **editable
-  transcript** → Bedrock analysis.
-- **Video analysis** — upload (max 5 min) → Rekognition Video → scam result.
+- **Image / Voice / Video analysis** — results show a **speedometer gauge** with the
+  scam probability, the reasoning, the detected content, and what to do next.
 - **Search** — time period + optional keywords + "verified only" →
   "Go statistics for your search" → **Statistics by Town**, top scam types, and a
   scrollable case list.
 - **Report** — mandatory date (defaults to today), 200-word description, town and
   scam-type pickers → writes into the **same dataset** as the 5,000 rows → shows a
   thank-you + comforting message with the **1799 helpline**.
-- **Community** — pick a chat room by scam type → live chat session with sample
-  messages → post/exit.
-- **Chatbot** — Bedrock-backed Q&A and awareness tips, reachable from anywhere.
-
-## AWS integration (all analysis is LLM-driven)
-
-| Feature | Pipeline |
-| --- | --- |
-| Take picture / Upload image | **Rekognition** (DetectText + DetectLabels + Moderation) → **Bedrock vision** reasons over the evidence *and the actual image pixels* |
-| Upload audio / Say what happened | **Transcribe** (speech→text, 4 languages) → user edits transcript → **Bedrock** |
-| Upload video | **Rekognition Video** (text + labels across sampled frames) → **Bedrock** |
-| Chatbot | **Bedrock** with conversation history |
-
-The backend lives in [`backend/`](backend/) (API Gateway + Lambda, AWS SAM).
-Media is uploaded straight to S3 via presigned URLs, so no AWS credentials are
-ever on the device and large files bypass the API payload limit. Every result
-carries a `signals` object with the raw Rekognition/Transcribe evidence, so you
-can audit exactly what the model was shown.
+- **Community** — pick a chat room by scam type → live chat session → post/exit.
+- **Chatbot** — reachable from anywhere.
 
 ## Architecture
 
@@ -95,58 +95,66 @@ App.tsx
 
 src/
   data/       scams.json (5000 rows) · scamStore (search, stats, addReport)
-  services/   analysis.ts (explainable scam engine)
-              aws.ts      (Rekognition / Transcribe / Bedrock facade + mocks)
-              dynamo.ts   (AWS SDK v3, Node-only: seed + Lambda)
+  services/   api.ts      (backend client; no mocks, fails loudly)
+              analysis.ts (shared result types + risk bands)
               media.ts    (expo-image-picker helpers)
               config.ts   (reads app.json extra)
-  components/ ui.tsx, ScreenHeader, AnalysisResultView
+  components/ ui.tsx, RiskGauge, ScreenHeader, AnalysisResultView, BackendBanner
   screens/    Home, ImageAnalysis, VoiceAnalysis, VideoAnalysis,
               Search, Report, Community, Chatbot
-scripts/      buildMockDataset.js · generateDataset.js · seedDynamo.ts
-docs/         AWS_SETUP.md
+
+backend/
+  src/lib/      openai.ts (vision/Whisper/chat) · prompts.ts · parse.ts
+                types.ts · http.ts
+  src/handlers/ analyzeImage · analyzeVideo · transcribe · analyzeText · chat
+  src/local-server.ts   (loads .env, routes requests)
 ```
 
 ### Design decisions
 
-- **Expo Go compatibility**: built on Expo SDK 54; only Expo-supported modules are
-  used (`expo-image-picker`, `expo-audio`, React Navigation). The AWS SDK is
-  imported **only** in Node contexts (seed script / Lambda), never in the RN bundle.
-- **No secrets on device**: the app talks to an API Gateway + Lambda front door;
-  AWS credentials live server-side. Until that backend is configured, the app
-  uses deterministic mocks.
+- **Expo Go compatible**: only Expo-supported modules; no custom native code.
+- **No secrets on device**: the OpenAI key lives in `backend/.env` only.
+- **No mock analyzers**: an earlier build fabricated OCR text and presented it as
+  real, which is worse than failing. Now every verdict comes from OpenAI, and any
+  failure surfaces the real error. A unit test fails the build if mock sample
+  text or an API key ever appears in the app source.
 - **Shared dataset for reports**: `scamStore.addReport` appends user reports to the
-  in-memory copy of the 5,000-row dataset (mirrored to DynamoDB via `/report` +
-  `putReport` in production), so reported cases appear in Search immediately.
-- **Explainable analysis**: `analyzeText` produces a probability **and reasons**,
-  so users understand *why* something looks like a scam. The same categories seed
-  the Bedrock prompt for consistency.
+  in-memory copy of the 5,000-row dataset, so reported cases appear in Search
+  immediately.
+- **Fail safe on bad model output**: probabilities are validated and clamped; a
+  model returning `1.5` clamps *up* to 1 rather than being read as `0.015`
+  (which would flip an extreme verdict to "safe").
 
 ## The 5,000-row dataset
 
-`src/data/scams.json` ships with 5,000 verified records across 14 scam types and
-40 Singapore towns, with fields matching the provided `ScamInfoDB-5000` schema:
-`id, dateReported, scamType, keywords[], town, specificPlace, source, verified,
-year`.
+`src/data/scams.json` holds 5,000 verified records across 14 scam types and 40
+Singapore towns: `id, dateReported, scamType, keywords[], town, specificPlace,
+source, verified, year`.
 
-- To use your **real CSV export**, drop it at `scripts/ScamInfoDB-5000.csv` and run
-  `node scripts/generateDataset.js` (RFC-4180-aware parser that handles the quoted
+- To use a **real CSV export**, drop it at `scripts/ScamInfoDB-5000.csv` and run
+  `node scripts/generateDataset.js` (RFC-4180-aware parser for the quoted
   `Keywords` column).
-- To regenerate the bundled synthetic dataset, run
-  `node scripts/buildMockDataset.js` (deterministic; same distribution/schema).
+- To regenerate the bundled dataset: `node scripts/buildMockDataset.js`.
 
 ## Testing
 
-`npm test` runs Jest suites covering dataset integrity (5000 rows, required
-fields), search filters (date range, keywords, verified-only, town/type), stats
-aggregation, the shared-table `addReport` flow, keyword extraction, and the scam
-analysis engine (phishing/investment detection, urgency/money signals, benign
-text). 18 tests currently pass.
+**64 tests** — 36 app + 28 backend:
+
+- Dataset integrity (5000 rows, required fields), search filters, stats
+  aggregation, shared-table reporting, keyword extraction
+- Speedometer gauge geometry (angle mapping, arc paths, band/threshold agreement)
+- Content-type detection, risk-band thresholds
+- Backend: LLM JSON extraction (fenced, prose-wrapped, nested, escaped quotes),
+  probability validation and clamping, prompt construction, Whisper filename
+  derivation
+- Guards that no mock analyzer or API key can reappear in the app source
 
 ## Limitations
 
-- Mock analyzers are heuristic and for awareness only — not a substitute for
-  official verification. When unsure, users are directed to call **1799**.
-- Expo Go cannot pick arbitrary audio files; the audio picker accepts library
-  media. A production build can add `expo-document-picker` for any audio file.
+- Analysis is AI-assisted awareness, not a verdict. Users are pointed to **1799**.
+- **Whisper caps uploads at 25 MB**; long videos must be trimmed.
+- Video analysis reads the **audio track only** — a purely visual scam video is
+  better checked by screenshotting it and using the image flow.
+- Expo Go cannot pick arbitrary audio files; the picker accepts library media.
+  A production build can add `expo-document-picker`.
 - Full WCAG conformance requires manual testing with assistive technologies.

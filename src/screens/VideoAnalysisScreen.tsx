@@ -6,11 +6,11 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, Muted, SubHeading } from '../components/ui';
 import { useI18n } from '../i18n';
 import { AnalysisResult } from '../services/analysis';
-import { aws } from '../services/aws';
+import { api } from '../services/api';
 import { pickVideo } from '../services/media';
 import { colors, spacing } from '../theme';
 
-/** Video flow: upload video (max 5 min) -> Rekognition Video -> scam result. */
+/** Video flow: upload video -> Whisper (audio track) -> gpt-4o -> scam result. */
 export const VideoAnalysisScreen: React.FC = () => {
   const { t } = useI18n();
   const [uri, setUri] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export const VideoAnalysisScreen: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      setResult(await aws.analyzeVideo(uri));
+      setResult(await api.analyzeVideo(uri));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Analysis failed. Please try again.');
     } finally {

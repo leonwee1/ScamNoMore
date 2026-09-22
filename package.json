@@ -9,7 +9,6 @@
     "web": "expo start --web",
     "test": "jest",
     "test:watch": "jest --watch",
-    "seed": "ts-node scripts/seedDynamo.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -27,8 +26,6 @@
     "react-native-svg": "15.12.1"
   },
   "devDependencies": {
-    "@aws-sdk/client-dynamodb": "^3.600.0",
-    "@aws-sdk/lib-dynamodb": "^3.600.0",
     "@babel/core": "^7.24.0",
     "@types/jest": "^29.5.12",
     "@types/react": "~19.1.0",

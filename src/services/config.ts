@@ -1,32 +1,27 @@
 import Constants from 'expo-constants';
 
 /**
- * Runtime configuration for the AWS backend.
+ * Runtime configuration.
  *
- * Expo Go cannot hold AWS credentials securely, so the app never calls AWS
- * directly. It talks to an HTTPS backend that performs the AWS work:
+ * The app never holds the OpenAI key — anything bundled into an Expo app can be
+ * extracted. It talks to the small backend in `backend/`, which holds the key
+ * server-side and calls OpenAI:
  *
- *   App (Expo) --> API Gateway + Lambda --> Rekognition / Rekognition Video
- *                                          Transcribe / Bedrock / DynamoDB
+ *   App (Expo) --> backend --> OpenAI (gpt-4o vision, Whisper, chat)
  *
- * Set `apiBaseUrl` in app.json (expo.extra) to either:
- *   - your deployed API Gateway stage URL, or
- *   - your machine's LAN URL while running backend/src/local-server.ts
- *     (e.g. http://172.20.10.11:3000)
+ * Set `apiBaseUrl` in app.json (expo.extra) to your backend URL, e.g.
+ * http://172.20.10.11:3000 while developing (your machine's LAN IP, not
+ * localhost — the phone must be able to reach it).
  *
- * There is no mock mode: if this is unset, analysis calls fail with a clear
- * error instead of returning invented results.
+ * There is no mock mode: if this is unset, analysis fails with a clear error
+ * instead of returning invented results.
  */
 type Extra = {
-  awsRegion?: string;
-  dynamoTable?: string;
   apiBaseUrl?: string;
 };
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
 
 export const config = {
-  awsRegion: extra.awsRegion ?? 'ap-southeast-1',
-  dynamoTable: extra.dynamoTable ?? 'ScamNoMoreScams',
   apiBaseUrl: extra.apiBaseUrl ?? '',
 };

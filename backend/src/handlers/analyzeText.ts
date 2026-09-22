@@ -1,27 +1,20 @@
-import type { APIGatewayProxyHandler } from 'aws-lambda';
-import { analyzeWithBedrock } from '../lib/bedrock';
-import { badRequest, ok, parseBody, serverError } from '../lib/http';
+import { badRequest, Handler, json, ok, serverError } from '../lib/http';
+import { analyzeTextEvidence } from '../lib/openai';
 
 /**
  * POST /analyze/text
- * Body: { text: string, source?: 'transcribe' | 'text' }
+ * Body: { text: string, source?: 'voice' | 'text' }
  *
- * Bedrock LLM analysis of a transcript (voice flow) or of text the user typed
- * or pasted (message / email / advertisement).
+ * gpt-4o analysis of a transcript (voice flow, after the user edits it) or of
+ * text the user typed or pasted (message / email / advertisement).
  */
-export const handler: APIGatewayProxyHandler = async (event) => {
+export const handler: Handler = async (req) => {
   try {
-    const { text, source } = parseBody<{ text?: string; source?: string }>(event);
+    const { text, source } = json<{ text?: string; source?: string }>(req);
     if (!text?.trim()) return badRequest('Missing "text"');
 
-    const isTranscript = source !== 'text';
-    const result = await analyzeWithBedrock(
-      isTranscript
-        ? { source: 'transcribe', transcript: text }
-        : { source: 'text', ocrText: text }
-    );
-
-    return ok(result);
+    const kind = source === 'text' ? 'text' : 'voice';
+    return ok(await analyzeTextEvidence(text, kind));
   } catch (err) {
     return serverError(err);
   }

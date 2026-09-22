@@ -6,8 +6,8 @@ import { ScamRecord, ScamStats } from './types';
  * at runtime by user incident reports (Report screen) so that reports land in
  * the SAME table as the mockup data, exactly as the wireframe specifies.
  *
- * In production this layer is backed by DynamoDB (see src/services/dynamo.ts);
- * here it keeps a synchronous copy so the UI works offline / in Expo Go.
+ * The dataset is bundled with the app and kept in memory, so search and reports
+ * work offline and instantly in Expo Go.
  */
 let records: ScamRecord[] = (raw as ScamRecord[]).slice();
 

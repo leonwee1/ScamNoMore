@@ -1,4 +1,5 @@
-import { extractJsonObject, parseAnalysisJson } from '../lib/bedrock';
+import { filenameFor, mimeOf } from '../lib/http';
+import { extractJsonObject, parseAnalysisJson } from '../lib/parse';
 import { buildAnalysisUserPrompt } from '../lib/prompts';
 import { riskFromProbability } from '../lib/types';
 
@@ -8,18 +9,15 @@ describe('extractJsonObject', () => {
   });
 
   it('strips markdown fences', () => {
-    const raw = '```json\n{"a":1}\n```';
-    expect(extractJsonObject(raw)).toBe('{"a":1}');
+    expect(extractJsonObject('```json\n{"a":1}\n```')).toBe('{"a":1}');
   });
 
   it('ignores prose before and after', () => {
-    const raw = 'Here is my analysis:\n{"a":1}\nHope that helps!';
-    expect(extractJsonObject(raw)).toBe('{"a":1}');
+    expect(extractJsonObject('Analysis:\n{"a":1}\nHope that helps!')).toBe('{"a":1}');
   });
 
   it('handles nested objects', () => {
-    const raw = 'x {"a":{"b":2},"c":3} y';
-    expect(extractJsonObject(raw)).toBe('{"a":{"b":2},"c":3}');
+    expect(extractJsonObject('x {"a":{"b":2},"c":3} y')).toBe('{"a":{"b":2},"c":3}');
   });
 
   it('is not confused by braces inside strings', () => {
@@ -54,8 +52,7 @@ describe('parseAnalysisJson', () => {
   });
 
   it('parses a fenced response with prose', () => {
-    const r = parseAnalysisJson('Sure!\n```json\n' + valid + '\n```');
-    expect(r.probability).toBe(0.82);
+    expect(parseAnalysisJson('Sure!\n```json\n' + valid + '\n```').probability).toBe(0.82);
   });
 
   it('converts percentages to 0..1', () => {
@@ -81,9 +78,8 @@ describe('parseAnalysisJson', () => {
     expect(parseAnalysisJson('{"probability":45,"reasons":["x"],"advice":"y"}').probability).toBe(0.45);
   });
 
-  it('defaults a missing/invalid probability to 0', () => {
-    const r = parseAnalysisJson('{"scamType":"Others","reasons":["x"],"advice":"y"}');
-    expect(r.probability).toBe(0);
+  it('defaults a missing probability to 0', () => {
+    expect(parseAnalysisJson('{"scamType":"Others","reasons":["x"],"advice":"y"}').probability).toBe(0);
   });
 
   it('normalises scam type casing to the canonical list', () => {
@@ -98,7 +94,7 @@ describe('parseAnalysisJson', () => {
   });
 
   it('caps reasons at five entries', () => {
-    const many = JSON.stringify({ probability: 0.5, reasons: ['a', 'b', 'c', 'd', 'e', 'f', 'g'], advice: 'x' });
+    const many = JSON.stringify({ probability: 0.5, reasons: ['a', 'b', 'c', 'd', 'e', 'f'], advice: 'x' });
     expect(parseAnalysisJson(many).reasons).toHaveLength(5);
   });
 
@@ -112,37 +108,54 @@ describe('parseAnalysisJson', () => {
 });
 
 describe('buildAnalysisUserPrompt', () => {
-  it('includes OCR text and flags QR codes', () => {
-    const p = buildAnalysisUserPrompt({
-      source: 'rekognition-image',
-      ocrText: '80% OFF ultrasonic cleaner',
-      hasQrCode: true,
-      labels: ['Advertisement', 'Qr Code'],
-    });
-    expect(p).toContain('80% OFF ultrasonic cleaner');
-    expect(p).toContain('QR CODE WAS DETECTED');
-    expect(p).toContain('Advertisement');
+  it('directs the model to read text and judge visual cues for images', () => {
+    const p = buildAnalysisUserPrompt({ source: 'image' });
     expect(p).toMatch(/still image/i);
+    expect(p).toMatch(/QR code/i);
+    expect(p).toMatch(/implausible discounts/i);
+    expect(p).toMatch(/endorsements/i);
   });
 
-  it('describes the transcript for voice evidence', () => {
-    const p = buildAnalysisUserPrompt({ source: 'transcribe', transcript: 'hello this is the police' });
-    expect(p).toContain('hello this is the police');
+  it('includes the transcript for voice evidence', () => {
+    const p = buildAnalysisUserPrompt({ source: 'voice', transcript: 'this is the police calling' });
+    expect(p).toContain('this is the police calling');
     expect(p).toMatch(/voice recording/i);
   });
 
-  it('notes when nothing could be extracted', () => {
-    const p = buildAnalysisUserPrompt({ source: 'rekognition-video' });
-    expect(p).toMatch(/No readable text/i);
+  it('explains that video analysis uses the audio track', () => {
+    const p = buildAnalysisUserPrompt({ source: 'video', transcript: 'guaranteed returns' });
+    expect(p).toMatch(/audio track/i);
+    expect(p).toContain('guaranteed returns');
   });
 
-  it('reports the sampled frame count for video', () => {
-    const p = buildAnalysisUserPrompt({ source: 'rekognition-video', ocrText: 'x', frameCount: 12 });
-    expect(p).toContain('12 sampled video frames');
+  it('handles a silent video honestly', () => {
+    const p = buildAnalysisUserPrompt({ source: 'video', noSpeechDetected: true });
+    expect(p).toMatch(/No speech could be detected/i);
+    expect(p).toMatch(/keep the probability low/i);
+  });
+
+  it('includes plain user text', () => {
+    const p = buildAnalysisUserPrompt({ source: 'text', text: 'You have won $1m' });
+    expect(p).toContain('You have won $1m');
   });
 });
 
-describe('riskFromProbability (backend)', () => {
+describe('content type helpers', () => {
+  it('normalises a Content-Type header to its mime', () => {
+    expect(mimeOf('image/jpeg; charset=utf-8', 'x')).toBe('image/jpeg');
+    expect(mimeOf('', 'audio/m4a')).toBe('audio/m4a');
+  });
+
+  it('derives a Whisper-friendly filename from the mime', () => {
+    // Whisper picks its decoder from the extension, so this must be right.
+    expect(filenameFor('audio/m4a', 'm4a')).toBe('upload.m4a');
+    expect(filenameFor('video/quicktime', 'mp4')).toBe('upload.mov');
+    expect(filenameFor('audio/mpeg', 'm4a')).toBe('upload.mp3');
+    expect(filenameFor('application/octet-stream', 'mp4')).toBe('upload.mp4');
+  });
+});
+
+describe('riskFromProbability', () => {
   it('matches the app-side thresholds', () => {
     expect(riskFromProbability(0.1)).toBe('safe');
     expect(riskFromProbability(0.2)).toBe('low');

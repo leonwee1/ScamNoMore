@@ -1,5 +1,7 @@
 node_modules/
 dist/
-.aws-sam/
-samconfig.toml
 *.log
+
+# Never commit secrets
+.env
+.env.local

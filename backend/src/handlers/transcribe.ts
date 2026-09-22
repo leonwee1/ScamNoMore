@@ -1,31 +1,24 @@
-import type { APIGatewayProxyHandler } from 'aws-lambda';
-import { badRequest, ok, parseBody, serverError } from '../lib/http';
-import { getObjectText, MEDIA_BUCKET } from '../lib/s3';
-import { LANGUAGE_MAP, parseTranscriptJson, runTranscriptionJob } from '../lib/transcribe';
+import { badRequest, filenameFor, Handler, mimeOf, ok, serverError } from '../lib/http';
+import { transcribeMedia } from '../lib/openai';
 
 /**
  * POST /transcribe
- * Body: { key: string, lang?: 'en'|'zh'|'ms'|'ta' }
- * Returns: { text: string }
+ * Body: raw audio bytes, Content-Type: audio/m4a | audio/mpeg | audio/wav | ...
+ * Returns: { text }
  *
- * Amazon Transcribe converts the recording to text. The app then shows the
- * transcript for the user to edit before sending it to /analyze/text (Bedrock).
+ * Whisper converts speech to text. The app shows the transcript for the user to
+ * edit, then sends it to /analyze/text.
  */
-export const handler: APIGatewayProxyHandler = async (event) => {
+export const handler: Handler = async (req) => {
   try {
-    const { key, lang } = parseBody<{ key?: string; lang?: string }>(event);
-    if (!key) return badRequest('Missing "key" (upload the audio first via /upload-url)');
-    if (!MEDIA_BUCKET) return serverError(new Error('MEDIA_BUCKET not configured'));
+    if (!req.raw.byteLength) return badRequest('Empty audio body');
 
-    const outputKey = await runTranscriptionJob({
-      bucket: MEDIA_BUCKET,
-      key,
-      languageCode: lang ? LANGUAGE_MAP[lang] : undefined,
-    });
+    const mime = mimeOf(req.contentType, 'audio/m4a');
+    if (!mime.startsWith('audio/') && !mime.startsWith('video/')) {
+      return badRequest(`Expected an audio Content-Type, got "${mime}"`);
+    }
 
-    const body = await getObjectText(MEDIA_BUCKET, outputKey);
-    const text = parseTranscriptJson(body);
-
+    const text = await transcribeMedia(req.raw, filenameFor(mime, 'm4a'), mime);
     return ok({ text });
   } catch (err) {
     return serverError(err);

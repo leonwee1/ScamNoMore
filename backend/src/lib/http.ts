@@ -1,31 +1,70 @@
-import type { APIGatewayProxyResult } from 'aws-lambda';
-
-/** Shared JSON/CORS response helpers for all handlers. */
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'OPTIONS,POST,GET',
-};
-
-export function ok(body: unknown): APIGatewayProxyResult {
-  return { statusCode: 200, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify(body) };
+/**
+ * Minimal HTTP abstraction shared by the handlers.
+ *
+ * Media is POSTed as a RAW BINARY body with the file's Content-Type. That avoids
+ * multipart parsing, base64 inflation, and any object storage — the simplest
+ * possible path from the phone to OpenAI.
+ */
+export interface Req {
+  /** Raw request body bytes (binary media, or UTF-8 JSON). */
+  raw: Buffer;
+  /** Request Content-Type header. */
+  contentType: string;
 }
 
-export function badRequest(message: string): APIGatewayProxyResult {
-  return { statusCode: 400, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ message }) };
+export interface Res {
+  statusCode: number;
+  body: unknown;
 }
 
-export function serverError(err: unknown): APIGatewayProxyResult {
+export const ok = (body: unknown): Res => ({ statusCode: 200, body });
+export const badRequest = (message: string): Res => ({ statusCode: 400, body: { message } });
+
+export function serverError(err: unknown): Res {
   const message = err instanceof Error ? err.message : 'Unexpected error';
   console.error('Handler failed:', err);
-  return { statusCode: 500, headers: { 'Content-Type': 'application/json', ...CORS }, body: JSON.stringify({ message }) };
+  return { statusCode: 500, body: { message } };
 }
 
-/** Parse a JSON body from API Gateway (handles base64 encoding). */
-export function parseBody<T>(event: { body?: string | null; isBase64Encoded?: boolean }): T {
-  if (!event.body) return {} as T;
-  const raw = event.isBase64Encoded
-    ? Buffer.from(event.body, 'base64').toString('utf8')
-    : event.body;
-  return JSON.parse(raw) as T;
+/** Parse a JSON body. */
+export function json<T>(req: Req): T {
+  const text = req.raw.toString('utf8');
+  if (!text.trim()) return {} as T;
+  return JSON.parse(text) as T;
+}
+
+/** A handler is just an async function from Req to Res. */
+export type Handler = (req: Req) => Promise<Res>;
+
+const EXT_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/heic': 'heic',
+  'audio/m4a': 'm4a',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/mpeg': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/webm': 'webm',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+};
+
+/**
+ * Whisper picks its decoder from the filename extension, so derive a sensible
+ * one from the Content-Type the app sent.
+ */
+export function filenameFor(contentType: string, fallbackExt: string): string {
+  const mime = contentType.split(';')[0].trim().toLowerCase();
+  const ext = EXT_BY_MIME[mime] ?? fallbackExt;
+  return `upload.${ext}`;
+}
+
+/** Normalise a Content-Type header down to its MIME type. */
+export function mimeOf(contentType: string, fallback: string): string {
+  const mime = contentType.split(';')[0].trim().toLowerCase();
+  return mime || fallback;
 }

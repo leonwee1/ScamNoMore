@@ -1,35 +1,23 @@
-import type { APIGatewayProxyHandler } from 'aws-lambda';
-import { analyzeImageWithBedrockVision } from '../lib/bedrock';
-import { badRequest, ok, parseBody, serverError } from '../lib/http';
-import { analyzeImageWithRekognition } from '../lib/rekognition';
-import { bedrockImageFormat, getObjectBytes, MEDIA_BUCKET } from '../lib/s3';
+import { badRequest, Handler, mimeOf, ok, serverError } from '../lib/http';
+import { analyzeImage } from '../lib/openai';
 
 /**
  * POST /analyze/image
- * Body: { key: string }   (S3 key from POST /upload-url)
+ * Body: raw image bytes, Content-Type: image/jpeg | image/png | image/webp
  *
- * Pipeline: Rekognition (DetectText + DetectLabels + Moderation) extracts
- * evidence, then Bedrock reasons over BOTH that evidence and the actual image
- * pixels (multimodal) to produce the scam verdict.
+ * gpt-4o vision reads all text in the image AND judges visual scam cues, so no
+ * separate OCR service is needed.
  */
-export const handler: APIGatewayProxyHandler = async (event) => {
+export const handler: Handler = async (req) => {
   try {
-    const { key } = parseBody<{ key?: string }>(event);
-    if (!key) return badRequest('Missing "key" (upload the image first via /upload-url)');
-    if (!MEDIA_BUCKET) return serverError(new Error('MEDIA_BUCKET not configured'));
+    if (!req.raw.byteLength) return badRequest('Empty image body');
 
-    // 1. Rekognition: OCR + labels + moderation flags.
-    const signals = await analyzeImageWithRekognition({ bucket: MEDIA_BUCKET, key });
+    const mime = mimeOf(req.contentType, 'image/jpeg');
+    if (!mime.startsWith('image/')) {
+      return badRequest(`Expected an image Content-Type, got "${mime}"`);
+    }
 
-    // 2. Bedrock (vision + evidence) -> calibrated verdict with reasoning.
-    const imageBytes = await getObjectBytes(MEDIA_BUCKET, key);
-    const result = await analyzeImageWithBedrockVision(
-      imageBytes,
-      bedrockImageFormat(key),
-      signals
-    );
-
-    return ok(result);
+    return ok(await analyzeImage(req.raw, mime));
   } catch (err) {
     return serverError(err);
   }

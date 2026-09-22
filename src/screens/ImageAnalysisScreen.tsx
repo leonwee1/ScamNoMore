@@ -6,11 +6,11 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, Muted } from '../components/ui';
 import { useI18n } from '../i18n';
 import { AnalysisResult } from '../services/analysis';
-import { aws } from '../services/aws';
+import { api } from '../services/api';
 import { pickImage } from '../services/media';
 import { colors, radius, spacing } from '../theme';
 
-/** Image analysis flow: take/upload picture -> Rekognition -> scam result. */
+/** Image analysis flow: take/upload picture -> gpt-4o vision -> scam result. */
 export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   const { t } = useI18n();
   const mode: 'camera' | 'library' = route.params?.mode ?? 'library';
@@ -41,7 +41,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setLoading(true);
     setError(null);
     try {
-      setResult(await aws.analyzeImage(uri));
+      setResult(await api.analyzeImage(uri));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Analysis failed. Please try again.');
     } finally {

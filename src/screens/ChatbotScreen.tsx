@@ -10,10 +10,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Body, Button, Muted } from '../components/ui';
 import { useI18n } from '../i18n';
-import { aws, ChatTurn } from '../services/aws';
+import { api, ChatTurn } from '../services/api';
 import { colors, font, radius, spacing } from '../theme';
 
-/** Bedrock-backed chatbot for scam Q&A and awareness tips. */
+/** OpenAI-powered chatbot for scam Q&A and awareness tips. */
 export const ChatbotScreen: React.FC = () => {
   const { t } = useI18n();
   const [turns, setTurns] = useState<ChatTurn[]>([
@@ -35,7 +35,7 @@ export const ChatbotScreen: React.FC = () => {
     setDraft('');
     setLoading(true);
     try {
-      const reply = await aws.chat(message, next);
+      const reply = await api.chat(message, next);
       setTurns((cur) => [...cur, { role: 'assistant', content: reply }]);
     } catch (e) {
       // Surface the real reason (e.g. backend not configured) instead of a

@@ -1,33 +1,42 @@
 /**
- * Local development server — the fastest way to run the REAL AWS pipeline
- * (Rekognition + Transcribe + Bedrock) without deploying anything.
+ * ScamNoMore backend server.
  *
- * It reuses the exact same Lambda handlers, so behaviour matches production.
- * Your laptop's AWS credentials are used (via the standard AWS credential
- * chain), and your phone talks to this server over your LAN.
+ * ── WHERE THE OPENAI KEY GOES ────────────────────────────────────────────────
+ * NOT in this file. Put it in `backend/.env`, which is gitignored:
+ *
+ *     OPENAI_API_KEY=sk-proj-xxxxxxxx
+ *
+ * dotenv (below) loads that file into process.env at startup, and
+ * src/lib/openai.ts reads process.env.OPENAI_API_KEY. Never hardcode the key in
+ * source, and never put it in the Expo app — anything bundled into the app can
+ * be extracted from the build and billed to your account.
+ * ─────────────────────────────────────────────────────────────────────────────
  *
  * Usage:
  *   cd backend
  *   npm install
- *   $env:MEDIA_BUCKET="your-bucket"; $env:AWS_REGION="ap-southeast-1"
- *   npx ts-node src/local-server.ts
+ *   copy .env.example .env      # then paste your key into .env
+ *   npm start
  *
  * Then set apiBaseUrl in app.json to http://<your-lan-ip>:3000
  */
-import { createServer, type IncomingMessage, type ServerResponse } from 'http';
-import type { APIGatewayProxyHandler, APIGatewayProxyResult } from 'aws-lambda';
+import 'dotenv/config';
 
+import { createServer, type IncomingMessage, type ServerResponse } from 'http';
 import { handler as analyzeImage } from './handlers/analyzeImage';
 import { handler as analyzeText } from './handlers/analyzeText';
 import { handler as analyzeVideo } from './handlers/analyzeVideo';
 import { handler as chat } from './handlers/chat';
 import { handler as transcribe } from './handlers/transcribe';
-import { handler as uploadUrl } from './handlers/uploadUrl';
+import type { Handler } from './lib/http';
+import { MAX_MEDIA_BYTES } from './lib/openai';
 
 const PORT = Number(process.env.PORT ?? 3000);
 
-const ROUTES: Record<string, APIGatewayProxyHandler> = {
-  '/upload-url': uploadUrl,
+/** Hard cap on request size; Whisper itself rejects anything over 25 MB. */
+const MAX_BODY_BYTES = MAX_MEDIA_BYTES + 1024 * 1024;
+
+const ROUTES: Record<string, Handler> = {
   '/analyze/image': analyzeImage,
   '/analyze/video': analyzeVideo,
   '/analyze/text': analyzeText,
@@ -35,75 +44,86 @@ const ROUTES: Record<string, APIGatewayProxyHandler> = {
   '/chat': chat,
 };
 
-function readBody(req: IncomingMessage): Promise<string> {
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Methods': 'OPTIONS,POST,GET',
+};
+
+/** Collect the raw body, rejecting oversized uploads early. */
+function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    let data = '';
-    req.on('data', (chunk) => (data += chunk));
-    req.on('end', () => resolve(data));
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        reject(new Error(`Body too large (limit ${Math.round(MAX_BODY_BYTES / 1024 / 1024)} MB)`));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+}
+
+function send(res: ServerResponse, statusCode: number, body: unknown): void {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json', ...CORS });
+  res.end(JSON.stringify(body));
 }
 
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
   const path = (req.url ?? '').split('?')[0];
 
-  // CORS preflight
   if (req.method === 'OPTIONS') {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Allow-Methods': 'OPTIONS,POST,GET',
-    });
+    res.writeHead(204, CORS);
     return res.end();
   }
 
   if (path === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(
-      JSON.stringify({
-        ok: true,
-        region: process.env.AWS_REGION ?? 'ap-southeast-1',
-        bucket: process.env.MEDIA_BUCKET ?? '(not set)',
-        model: process.env.BEDROCK_MODEL_ID ?? 'apac.anthropic.claude-3-5-sonnet-20240620-v1:0',
-      })
-    );
+    return send(res, 200, {
+      ok: true,
+      provider: 'openai',
+      chatModel: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o',
+      transcribeModel: process.env.OPENAI_TRANSCRIBE_MODEL ?? 'whisper-1',
+      apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
+    });
   }
 
   const route = ROUTES[path];
   if (!route || req.method !== 'POST') {
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ message: `No route for ${req.method} ${path}` }));
+    return send(res, 404, { message: `No route for ${req.method} ${path}` });
   }
 
   const started = Date.now();
   try {
-    const body = await readBody(req);
-    // Minimal APIGatewayProxyEvent shape — handlers only read body/isBase64Encoded.
-    const result = (await route(
-      { body, isBase64Encoded: false } as never,
-      {} as never,
-      () => undefined
-    )) as APIGatewayProxyResult;
-
-    console.log(`${req.method} ${path} -> ${result.statusCode} (${Date.now() - started}ms)`);
-    res.writeHead(result.statusCode, {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
+    const raw = await readBody(req);
+    const result = await route({
+      raw,
+      contentType: req.headers['content-type'] ?? 'application/octet-stream',
     });
-    res.end(result.body);
+    console.log(
+      `${req.method} ${path} -> ${result.statusCode} ` +
+        `(${(raw.byteLength / 1024).toFixed(0)} KB, ${Date.now() - started}ms)`
+    );
+    send(res, result.statusCode, result.body);
   } catch (err) {
     console.error(`${req.method} ${path} -> 500`, err);
-    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-    res.end(JSON.stringify({ message: err instanceof Error ? err.message : 'Unexpected error' }));
+    send(res, 500, { message: err instanceof Error ? err.message : 'Unexpected error' });
   }
 });
 
 server.listen(PORT, () => {
-  console.log(`ScamNoMore backend listening on http://0.0.0.0:${PORT}`);
-  console.log(`  region : ${process.env.AWS_REGION ?? 'ap-southeast-1'}`);
-  console.log(`  bucket : ${process.env.MEDIA_BUCKET ?? '(MEDIA_BUCKET NOT SET!)'}`);
-  console.log(
-    `  model  : ${process.env.BEDROCK_MODEL_ID ?? 'apac.anthropic.claude-3-5-sonnet-20240620-v1:0'}`
-  );
-  console.log(`Routes: ${Object.keys(ROUTES).join(', ')}, /health`);
+  const keyOk = Boolean(process.env.OPENAI_API_KEY);
+  console.log(`\nScamNoMore backend listening on http://0.0.0.0:${PORT}`);
+  console.log(`  chat model : ${process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o'}`);
+  console.log(`  whisper    : ${process.env.OPENAI_TRANSCRIBE_MODEL ?? 'whisper-1'}`);
+  console.log(`  API key    : ${keyOk ? 'loaded from environment ✓' : '*** MISSING ***'}`);
+  if (!keyOk) {
+    console.log('\n  ⚠  Create backend/.env containing:');
+    console.log('       OPENAI_API_KEY=sk-proj-your-key-here\n');
+  }
+  console.log(`Routes: ${Object.keys(ROUTES).join(', ')}, /health\n`);
 });

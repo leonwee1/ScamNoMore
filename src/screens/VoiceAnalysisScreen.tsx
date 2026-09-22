@@ -13,13 +13,13 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Button, Card, Muted, SubHeading } from '../components/ui';
 import { useI18n } from '../i18n';
 import { AnalysisResult } from '../services/analysis';
-import { aws } from '../services/aws';
+import { api } from '../services/api';
 import { pickAudio } from '../services/media';
 import { colors, font, radius, spacing } from '../theme';
 
 /**
  * Voice flow (wireframe): upload audio OR record ("say what happened", max 5
- * min) -> Transcribe -> editable transcript -> Bedrock analysis.
+ * min) -> Whisper -> editable transcript -> gpt-4o analysis.
  *
  * Uses expo-audio (SDK 54+; expo-av was removed). The recorder is hook-based:
  * useAudioRecorder gives an imperative handle whose .uri is populated after
@@ -43,7 +43,8 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setError(null);
     try {
       // Pass the UI language so Transcribe picks the right model.
-      setTranscript(await aws.transcribeAudio(uri, lang));
+      // Whisper auto-detects the spoken language (EN/ZH/MS/TA).
+      setTranscript(await api.transcribeAudio(uri));
     } catch (e) {
       setError(
         `${e instanceof Error ? e.message : 'Transcription failed.'} You can also type what happened below.`
@@ -89,7 +90,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setLoading(true);
     setError(null);
     try {
-      setResult(await aws.analyzeTranscript(transcript));
+      setResult(await api.analyzeTranscript(transcript));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Analysis failed. Please try again.');
     } finally {
