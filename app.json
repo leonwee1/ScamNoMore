@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "ScamNoMore",
+    "slug": "scamnomore",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "scamnomore",
+    "newArchEnabled": false,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1B2B"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "ScamNoMore uses the camera to analyze suspicious images and videos.",
+        "NSMicrophoneUsageDescription": "ScamNoMore uses the microphone to analyze suspicious voice recordings.",
+        "NSPhotoLibraryUsageDescription": "ScamNoMore accesses your library to analyze suspicious screenshots and videos."
+      }
+    },
+    "android": {
+      "permissions": ["CAMERA", "RECORD_AUDIO", "READ_EXTERNAL_STORAGE"]
+    },
+    "plugins": [
+      "expo-image-picker",
+      "expo-av"
+    ],
+    "extra": {
+      "awsRegion": "ap-southeast-1",
+      "dynamoTable": "ScamNoMoreScams",
+      "useMockServices": true
+    }
+  }
+}

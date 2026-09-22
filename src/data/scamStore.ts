@@ -1,0 +1,146 @@
+import raw from './scams.json';
+import { ScamRecord, ScamStats } from './types';
+
+/**
+ * In-memory scam store. Seeded from the bundled 5000-row dataset and extended
+ * at runtime by user incident reports (Report screen) so that reports land in
+ * the SAME table as the mockup data, exactly as the wireframe specifies.
+ *
+ * In production this layer is backed by DynamoDB (see src/services/dynamo.ts);
+ * here it keeps a synchronous copy so the UI works offline / in Expo Go.
+ */
+let records: ScamRecord[] = (raw as ScamRecord[]).slice();
+
+/** Listeners notified whenever the dataset changes (e.g. after a report). */
+type Listener = () => void;
+const listeners = new Set<Listener>();
+const notify = () => listeners.forEach((l) => l());
+
+export const scamStore = {
+  all(): ScamRecord[] {
+    return records;
+  },
+
+  count(): number {
+    return records.length;
+  },
+
+  /** Append a new verified incident report to the shared dataset. */
+  addReport(input: {
+    dateReported: string;
+    scamType: string;
+    town: string;
+    description: string;
+  }): ScamRecord {
+    const keywords = extractKeywords(input.description);
+    const rec: ScamRecord = {
+      id: `user-report-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      dateReported: input.dateReported,
+      scamType: input.scamType,
+      keywords,
+      town: input.town,
+      specificPlace: input.town,
+      source: 'user-report',
+      verified: true,
+      year: parseInt(input.dateReported.slice(0, 4), 10),
+    };
+    records = [rec, ...records];
+    notify();
+    return rec;
+  },
+
+  subscribe(listener: Listener): () => void {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  },
+
+  /** Reset to the seeded dataset (used by tests). */
+  _reset(): void {
+    records = (raw as ScamRecord[]).slice();
+    notify();
+  },
+};
+
+/** Naive keyword extraction from free text for report enrichment. */
+export function extractKeywords(text: string): string[] {
+  const stop = new Set([
+    'the', 'a', 'an', 'and', 'or', 'to', 'of', 'in', 'on', 'for', 'was', 'were',
+    'is', 'are', 'i', 'me', 'my', 'he', 'she', 'they', 'it', 'that', 'this',
+    'with', 'at', 'from', 'by', 'as', 'but', 'so', 'then', 'had', 'have',
+  ]);
+  return Array.from(
+    new Set(
+      text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 3 && !stop.has(w))
+    )
+  ).slice(0, 8);
+}
+
+export interface SearchFilters {
+  from?: string; // ISO date inclusive
+  to?: string; // ISO date inclusive
+  keywords?: string[]; // any-match, case-insensitive
+  scamType?: string;
+  town?: string;
+  verifiedOnly?: boolean;
+}
+
+/** Filter the shared dataset by the wireframe's search criteria. */
+export function searchScams(filters: SearchFilters): ScamRecord[] {
+  const kw = (filters.keywords ?? []).map((k) => k.toLowerCase()).filter(Boolean);
+  return scamStore.all().filter((r) => {
+    if (filters.from && r.dateReported < filters.from) return false;
+    if (filters.to && r.dateReported > filters.to) return false;
+    if (filters.verifiedOnly && !r.verified) return false;
+    if (filters.scamType && r.scamType !== filters.scamType) return false;
+    if (filters.town && r.town !== filters.town) return false;
+    if (kw.length) {
+      const hay = (r.keywords.join(' ') + ' ' + r.scamType).toLowerCase();
+      if (!kw.some((k) => hay.includes(k))) return false;
+    }
+    return true;
+  });
+}
+
+/** Aggregate a result set into dashboard-friendly statistics. */
+export function computeStats(list: ScamRecord[]): ScamStats {
+  const typeMap = new Map<string, number>();
+  const townMap = new Map<string, number>();
+  const yearMap = new Map<number, number>();
+  const kwMap = new Map<string, number>();
+
+  for (const r of list) {
+    typeMap.set(r.scamType, (typeMap.get(r.scamType) ?? 0) + 1);
+    townMap.set(r.town, (townMap.get(r.town) ?? 0) + 1);
+    yearMap.set(r.year, (yearMap.get(r.year) ?? 0) + 1);
+    for (const k of r.keywords) kwMap.set(k, (kwMap.get(k) ?? 0) + 1);
+  }
+
+  const sortDesc = <K,>(m: Map<K, number>) =>
+    Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+
+  return {
+    total: list.length,
+    byType: sortDesc(typeMap).map(([type, count]) => ({ type, count })),
+    byTown: sortDesc(townMap).map(([town, count]) => ({ town, count })),
+    byYear: Array.from(yearMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([year, count]) => ({ year, count })),
+    topKeywords: sortDesc(kwMap)
+      .slice(0, 15)
+      .map(([keyword, count]) => ({ keyword, count })),
+  };
+}
+
+/** Distinct scam types present in the dataset (for dropdowns). */
+export function scamTypes(): string[] {
+  return Array.from(new Set(scamStore.all().map((r) => r.scamType))).sort();
+}
+
+/** Distinct towns present in the dataset (for dropdowns). */
+export function towns(): string[] {
+  return Array.from(new Set(scamStore.all().map((r) => r.town))).sort();
+}
