@@ -1,127 +1,162 @@
+import { AnalysisResult, riskFromProbability } from './analysis';
 import { config } from './config';
-import { analyzeText, AnalysisResult, riskFromProbability } from './analysis';
 
 /**
- * Thin service facade over the AWS integrations required by the brief:
- *  - Rekognition (image)         -> analyzeImage
- *  - Rekognition Video           -> analyzeVideo
- *  - Transcribe + Bedrock (voice)-> transcribeAudio + analyzeText
- *  - Bedrock LLM (chatbot)       -> chat
- *  - DynamoDB (reports/data)     -> see dynamo.ts
+ * Service facade over the REAL AWS pipeline. There are no mock analyzers here:
+ * every verdict and every chatbot reply comes from AWS.
  *
- * Each method calls the backend API (API Gateway + Lambda) when apiBaseUrl is
- * set and useMockServices is false; otherwise it returns a deterministic
- * on-device mock so the app runs in Expo Go without any cloud setup.
+ *   analyzeImage      -> Rekognition (OCR/labels/moderation) + Bedrock (vision)
+ *   analyzeVideo      -> Rekognition Video (text/labels) + Bedrock
+ *   transcribeAudio   -> Amazon Transcribe
+ *   analyzeTranscript -> Bedrock LLM
+ *   chat              -> Bedrock LLM
+ *
+ * If the backend is not configured we throw a clear, actionable error rather
+ * than inventing an answer — a fabricated verdict is worse than no verdict.
  */
 
+export class BackendNotConfiguredError extends Error {
+  constructor() {
+    super(
+      'AWS backend is not configured. Set "apiBaseUrl" in app.json (expo.extra) to your ' +
+        'API Gateway URL or local dev server, then reload. See docs/AWS_SETUP.md.'
+    );
+    this.name = 'BackendNotConfiguredError';
+  }
+}
+
+function requireBaseUrl(): string {
+  const base = config.apiBaseUrl?.trim();
+  if (!base) throw new BackendNotConfiguredError();
+  return base.replace(/\/+$/, '');
+}
+
+const TIMEOUT_MS = 120_000; // Rekognition Video / Transcribe jobs can be slow.
+
 async function callApi<T>(pathName: string, body: unknown): Promise<T> {
-  const res = await fetch(`${config.apiBaseUrl}${pathName}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+  const base = requireBaseUrl();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${base}${pathName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    const text = await res.text();
+    if (!res.ok) {
+      let message = `${res.status} ${res.statusText}`;
+      try {
+        const parsed = JSON.parse(text) as { message?: string };
+        if (parsed.message) message = parsed.message;
+      } catch {
+        if (text) message = text.slice(0, 300);
+      }
+      throw new Error(`${pathName} failed: ${message}`);
+    }
+    return JSON.parse(text) as T;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error(`${pathName} timed out after ${TIMEOUT_MS / 1000}s. Please try again.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Guess a content type from a local file URI. */
+export function contentTypeFor(uri: string, kind: 'image' | 'audio' | 'video'): string {
+  const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
+  const map: Record<string, string> = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic',
+    m4a: 'audio/m4a', mp3: 'audio/mpeg', wav: 'audio/wav', caf: 'audio/x-caf', webm: 'audio/webm',
+    mp4: kind === 'video' ? 'video/mp4' : 'audio/mp4', mov: 'video/quicktime',
+  };
+  if (map[ext]) return map[ext];
+  return kind === 'image' ? 'image/jpeg' : kind === 'audio' ? 'audio/m4a' : 'video/mp4';
+}
+
+/**
+ * Upload a local file to S3 through a presigned URL and return its object key.
+ * Media goes straight to S3, so it never hits API Gateway's payload limit.
+ */
+export async function uploadMedia(
+  uri: string,
+  kind: 'image' | 'audio' | 'video'
+): Promise<string> {
+  const contentType = contentTypeFor(uri, kind);
+
+  const { uploadUrl, key } = await callApi<{ uploadUrl: string; key: string }>('/upload-url', {
+    kind,
+    contentType,
   });
-  if (!res.ok) throw new Error(`API ${pathName} failed: ${res.status}`);
-  return (await res.json()) as T;
+
+  // Read the local file as a blob and PUT it to the presigned URL.
+  const fileRes = await fetch(uri);
+  const blob = await fileRes.blob();
+
+  const putRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': contentType },
+    body: blob,
+  });
+  if (!putRes.ok) {
+    throw new Error(`Upload failed: ${putRes.status} ${putRes.statusText}`);
+  }
+
+  return key;
 }
-
-const shouldMock = () => config.useMockServices || !config.apiBaseUrl;
-
-// --- Sample OCR/transcription text used by mocks (varied but deterministic) ---
-const MOCK_OCR_SAMPLES = [
-  'URGENT: Your DBS account has unusual activity. Verify your account within 12 hours or it will be suspended. Click the link to confirm your password and OTP.',
-  'Congratulations! You have won the Singtel lucky draw jackpot. Pay a small processing fee via PayNow to claim your prize.',
-  'Hi, I am from the investment group. Guaranteed returns of 30% weekly with USDT on MetaTrader. Join via Telegram for referral bonus.',
-  'Selling brand new iPhone at 60% discount on Carousell. PayNow first to reserve, no meetup, limited stock.',
-];
-
-function hashPick<T>(seed: string, arr: T[]): T {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return arr[Math.abs(h) % arr.length];
-}
-
-export const aws = {
-  /** Rekognition DetectText + moderation on an image; returns scam analysis. */
-  async analyzeImage(imageUri: string): Promise<AnalysisResult> {
-    if (shouldMock()) {
-      const ocr = hashPick(imageUri, MOCK_OCR_SAMPLES);
-      const result = analyzeText(ocr);
-      result.reasons.unshift('Rekognition detected text in the image (OCR).');
-      return result;
-    }
-    return callApi<AnalysisResult>('/analyze/image', { imageUri });
-  },
-
-  /** Rekognition Video label/text detection across frames. */
-  async analyzeVideo(videoUri: string): Promise<AnalysisResult> {
-    if (shouldMock()) {
-      const ocr = hashPick(videoUri, MOCK_OCR_SAMPLES);
-      const result = analyzeText(ocr);
-      result.reasons.unshift(
-        'Rekognition Video sampled frames and detected on-screen text/labels.'
-      );
-      return result;
-    }
-    return callApi<AnalysisResult>('/analyze/video', { videoUri });
-  },
-
-  /** AWS Transcribe: audio -> text. */
-  async transcribeAudio(audioUri: string): Promise<string> {
-    if (shouldMock()) {
-      return hashPick(audioUri, MOCK_OCR_SAMPLES);
-    }
-    const { text } = await callApi<{ text: string }>('/transcribe', { audioUri });
-    return text;
-  },
-
-  /** Bedrock LLM analysis of transcribed/edited text. */
-  async analyzeTranscript(text: string): Promise<AnalysisResult> {
-    if (shouldMock()) {
-      const result = analyzeText(text);
-      result.reasons.unshift('Bedrock LLM assessed the transcribed narrative.');
-      return result;
-    }
-    return callApi<AnalysisResult>('/analyze/text', { text });
-  },
-
-  /** Bedrock chatbot for scam questions and awareness tips. */
-  async chat(message: string, history: ChatTurn[]): Promise<string> {
-    if (shouldMock()) {
-      return mockChat(message);
-    }
-    const { reply } = await callApi<{ reply: string }>('/chat', { message, history });
-    return reply;
-  },
-};
 
 export interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
 }
 
-/** Rule-based stand-in for the Bedrock chatbot (awareness tips + Q&A). */
-export function mockChat(message: string): string {
-  const m = message.toLowerCase();
-  if (/otp|password|one-time/.test(m)) {
-    return 'Never share your OTP or password with anyone — not even people claiming to be from your bank or the police. Banks and government agencies will never ask for it.';
-  }
-  if (/invest|crypto|bitcoin|returns/.test(m)) {
-    return 'Investment scams promise "guaranteed" or unusually high returns. No legitimate investment guarantees profit. Verify the platform with MAS Financial Institutions Directory before transferring any money.';
-  }
-  if (/job|part.?time|commission|task/.test(m)) {
-    return 'Job scams ask you to pay upfront "training" or "commission task" fees, or to complete tasks for payouts. A real employer never asks you to pay them. Stop if money is requested.';
-  }
-  if (/police|iras|ica|court|arrest|government/.test(m)) {
-    return 'Government agencies will not call to demand transfers or threaten arrest over the phone. Hang up and verify by calling the agency\'s official number, or call the ScamShield helpline at 1799.';
-  }
-  if (/love|romance|dating|overseas/.test(m)) {
-    return 'Romance scammers build trust over weeks, then ask for money for emergencies, customs, or travel. Never send money to someone you have not met in person.';
-  }
-  if (/report|victim|lost money|scammed/.test(m)) {
-    return 'If you have lost money, make a police report immediately and contact your bank to freeze transactions. You can also call the 1799 helpline. It is not your fault — scammers use sophisticated tactics.';
-  }
-  return 'I can help you check messages, calls, and offers for scam signs, and share prevention tips. Ask me about phishing, investment, job, romance, or government-impersonation scams — or tap Home to analyze an image, voice, or video.';
-}
+export const aws = {
+  /** Rekognition (OCR + labels + moderation) then Bedrock vision analysis. */
+  async analyzeImage(imageUri: string): Promise<AnalysisResult> {
+    const key = await uploadMedia(imageUri, 'image');
+    return callApi<AnalysisResult>('/analyze/image', { key });
+  },
+
+  /** Rekognition Video (text + labels across frames) then Bedrock analysis. */
+  async analyzeVideo(videoUri: string): Promise<AnalysisResult> {
+    const key = await uploadMedia(videoUri, 'video');
+    return callApi<AnalysisResult>('/analyze/video', { key });
+  },
+
+  /** Amazon Transcribe: speech -> text. */
+  async transcribeAudio(audioUri: string, lang?: string): Promise<string> {
+    const key = await uploadMedia(audioUri, 'audio');
+    const { text } = await callApi<{ text: string }>('/transcribe', { key, lang });
+    return text;
+  },
+
+  /** Bedrock LLM analysis of the (user-editable) transcript. */
+  async analyzeTranscript(text: string): Promise<AnalysisResult> {
+    return callApi<AnalysisResult>('/analyze/text', { text, source: 'transcribe' });
+  },
+
+  /** Bedrock LLM analysis of arbitrary text (message / email / advertisement). */
+  async analyzeTextContent(text: string): Promise<AnalysisResult> {
+    return callApi<AnalysisResult>('/analyze/text', { text, source: 'text' });
+  },
+
+  /** Bedrock LLM chatbot with conversation history. */
+  async chat(message: string, history: ChatTurn[]): Promise<string> {
+    const { reply } = await callApi<{ reply: string }>('/chat', { message, history });
+    return reply;
+  },
+
+  /** True when a backend URL is configured (used to warn in the UI). */
+  isConfigured(): boolean {
+    return Boolean(config.apiBaseUrl?.trim());
+  },
+};
 
 /** Convert a probability into a short label for the results UI. */
 export function probabilityLabel(p: number): string {

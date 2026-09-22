@@ -1,85 +1,133 @@
-# AWS setup (free tier)
+# AWS setup
 
-ScamNoMore runs fully on-device in Expo Go using deterministic mocks
-(`useMockServices: true` in `app.json`). This document describes how to wire the
-real AWS services when you are ready. The recommended topology keeps **all
-credentials off the device**:
+**There is no mock mode.** Every scam verdict and every chatbot reply comes from
+AWS. If `apiBaseUrl` is not set the app shows a clear error and a warning banner
+rather than inventing a result.
 
 ```
-Expo app  ──HTTPS──▶  API Gateway  ──▶  Lambda  ──▶  Rekognition / Rekognition Video
-                                            │            Transcribe / Bedrock
-                                            └──▶  DynamoDB (ScamNoMoreScams)
+Expo app ──HTTPS──▶ API Gateway ──▶ Lambda ──┬──▶ Rekognition        (image OCR/labels/moderation)
+                │                            ├──▶ Rekognition Video  (frame text/labels)
+                │                            ├──▶ Transcribe         (speech → text)
+                │                            ├──▶ Bedrock LLM        (all analysis + chatbot)
+                │                            └──▶ DynamoDB           (scam cases + reports)
+                └──PUT presigned URL──▶ S3   (media never passes through the API)
 ```
 
-The app only ever holds an `apiBaseUrl`. It never embeds AWS keys.
+No AWS credentials ever live on the device.
 
-## 1. DynamoDB (data + reports)
+## Prerequisites
 
-Free tier: 25 GB storage + 25 WCU/RCU (provisioned) or generous on-demand usage.
+1. **Enable Bedrock model access.** Bedrock console → *Model access* → request
+   access to a text+vision model (e.g. Anthropic Claude 3.5 Sonnet, or Amazon
+   Nova Lite/Pro). This is a one-time approval per account/region.
+2. AWS credentials locally (`aws configure`).
+3. Node 20+.
+
+> Vision matters: image analysis sends the **actual picture** to Bedrock, not just
+> OCR text. That is what lets it catch a fake "80% OFF" advert with a bogus
+> doctor endorsement, which text extraction alone would miss.
+
+---
+
+## Option A — Local dev server (fastest, no deployment)
+
+Real AWS calls, running from your laptop. Best for development and demos.
+
+```powershell
+# 1. Create a bucket for uploads
+aws s3 mb s3://scamnomore-media-<unique> --region ap-southeast-1
+
+# 2. Allow the phone to PUT directly to it
+aws s3api put-bucket-cors --bucket scamnomore-media-<unique> --cors-configuration '{
+  "CORSRules":[{"AllowedMethods":["PUT","GET"],"AllowedOrigins":["*"],"AllowedHeaders":["*"]}]
+}'
+
+# 3. Run the backend
+cd backend
+npm install
+$env:AWS_REGION="ap-southeast-1"
+$env:MEDIA_BUCKET="scamnomore-media-<unique>"
+$env:BEDROCK_MODEL_ID="apac.anthropic.claude-3-5-sonnet-20240620-v1:0"
+npx ts-node src/local-server.ts
+```
+
+Check it: open `http://localhost:3000/health` — it echoes the region, bucket and model.
+
+Then point the app at your machine's **LAN IP** (not `localhost`, the phone must
+reach your laptop). In `app.json`:
+
+```json
+"extra": { "apiBaseUrl": "http://172.20.10.11:3000" }
+```
+
+Restart Expo with a cleared cache so the new config is picked up:
+
+```
+npx expo start -c
+```
+
+> iOS blocks plain HTTP by default. For local testing this works in Expo Go, but
+> a production build must use HTTPS (Option B).
+
+---
+
+## Option B — Deploy to AWS (production)
+
+Requires the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html).
 
 ```bash
-aws dynamodb create-table \
-  --table-name ScamNoMoreScams \
-  --attribute-definitions AttributeName=id,AttributeType=S \
-  --key-schema AttributeName=id,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST \
-  --region ap-southeast-1
+cd backend
+npm install
+npm run build          # tsc -> dist/
+sam build
+sam deploy --guided    # accept defaults; note the ApiBaseUrl output
 ```
 
-Seed the 5000 rows:
+The stack creates the API, the six Lambdas, the S3 media bucket (with 1-day
+lifecycle expiry on uploads for privacy), the DynamoDB table, and least-privilege
+IAM roles. Copy the `ApiBaseUrl` output into `app.json` → `expo.extra.apiBaseUrl`.
+
+Seed the 5,000 scam rows:
 
 ```bash
+cd ..
 AWS_REGION=ap-southeast-1 DYNAMO_TABLE=ScamNoMoreScams npm run seed
 ```
 
-Incident reports submitted in the app are written to this **same table**
-(`putReport` in `src/services/dynamo.ts`), not a separate table.
+---
 
-## 2. Rekognition (image) and Rekognition Video
+## Endpoints
 
-- Image: Lambda calls `DetectText` + `DetectModerationLabels`, feeds the OCR text
-  into the shared analyzer (`analyzeText`) or Bedrock, returns an `AnalysisResult`.
-- Video: Lambda starts `StartTextDetection` / `StartLabelDetection`, polls
-  `GetTextDetection`, aggregates on-screen text across sampled frames.
-- Free tier: 5,000 images/month and 1,000 minutes of video for the first 12 months.
+| Route | Input | AWS services used | Output |
+| --- | --- | --- | --- |
+| `POST /upload-url` | `{ kind, contentType }` | S3 (presign) | `{ uploadUrl, key }` |
+| `POST /analyze/image` | `{ key }` | **Rekognition** → **Bedrock (vision)** | `AnalysisResult` |
+| `POST /analyze/video` | `{ key }` | **Rekognition Video** → **Bedrock** | `AnalysisResult` |
+| `POST /transcribe` | `{ key, lang? }` | **Transcribe** | `{ text }` |
+| `POST /analyze/text` | `{ text, source? }` | **Bedrock** | `AnalysisResult` |
+| `POST /chat` | `{ message, history }` | **Bedrock** | `{ reply }` |
 
-## 3. Transcribe (voice → text)
+`AnalysisResult` = `{ probability, riskLevel, scamType, reasons[], advice, detectedText?, signals? }`.
+`signals` carries the raw Rekognition/Transcribe evidence for auditing, so you can
+always see *what* the LLM was shown.
 
-- Lambda uploads the audio to S3, calls `StartTranscriptionJob`, returns text.
-- Free tier: 60 minutes/month for the first 12 months.
+## Cost notes (free tier where available)
 
-## 4. Bedrock (LLM analysis + chatbot)
+- **Rekognition**: 5,000 images + 1,000 video minutes/month, first 12 months.
+- **Transcribe**: 60 audio minutes/month, first 12 months.
+- **DynamoDB**: 25 GB on-demand storage always free.
+- **S3**: uploads auto-delete after 1 day.
+- **Bedrock**: pay-per-token, no perpetual free tier. Costs are small for this
+  workload (a few hundred tokens per analysis). Choose a cheaper model such as
+  Amazon Nova Lite via `BEDROCK_MODEL_ID` to reduce it further.
 
-- Enable model access (e.g. Anthropic Claude or Amazon Titan Text) in the Bedrock
-  console for your region.
-- Lambda calls `InvokeModel` with a prompt that reuses the scam categories in
-  `src/services/analysis.ts` for consistent, explainable output.
-- Bedrock is pay-as-you-go (no perpetual free tier); costs are per-token and small
-  for this workload.
+## Troubleshooting
 
-## 5. Point the app at your backend
-
-In `app.json` under `expo.extra`:
-
-```json
-{
-  "useMockServices": false,
-  "apiBaseUrl": "https://<your-api-id>.execute-api.ap-southeast-1.amazonaws.com/prod",
-  "awsRegion": "ap-southeast-1",
-  "dynamoTable": "ScamNoMoreScams"
-}
-```
-
-The service facade (`src/services/aws.ts`) automatically switches from mocks to
-real API calls when `useMockServices` is `false` and `apiBaseUrl` is set.
-
-## Expected Lambda routes
-
-| Route              | Input                        | Output (`AnalysisResult` unless noted) |
-| ------------------ | ---------------------------- | -------------------------------------- |
-| `POST /analyze/image` | `{ imageUri }` (or S3 key) | scam probability + reasons             |
-| `POST /analyze/video` | `{ videoUri }`             | scam probability + reasons             |
-| `POST /transcribe`    | `{ audioUri }`             | `{ text }`                             |
-| `POST /analyze/text`  | `{ text }`                 | scam probability + reasons             |
-| `POST /chat`          | `{ message, history }`     | `{ reply }`                            |
-| `POST /report`        | report fields              | `{ ok: true }` (writes to DynamoDB)    |
+| Symptom | Cause / fix |
+| --- | --- |
+| Banner: "AWS backend not configured" | `apiBaseUrl` empty in `app.json`. Set it and `npx expo start -c`. |
+| `AccessDeniedException` on Bedrock | Model access not approved, or wrong region. Check Bedrock → Model access. |
+| `ValidationException: model ... not supported` | Use a cross-region inference profile id (e.g. `apac.` / `us.` prefix) for your region. |
+| `Upload failed: 403` | Bucket CORS missing, or the presigned URL expired (15 min). |
+| Image analysis is generic | Confirm your model supports **vision**; text-only models can't see the image. |
+| Video analysis times out | Long videos exceed the poll window. Keep clips under the 5-minute app limit. |

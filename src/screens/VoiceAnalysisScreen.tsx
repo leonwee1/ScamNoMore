@@ -26,7 +26,7 @@ import { colors, font, radius, spacing } from '../theme';
  * .stop().
  */
 export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const mode: 'record' | 'upload' = route.params?.mode ?? 'record';
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -42,9 +42,12 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setBusy(true);
     setError(null);
     try {
-      setTranscript(await aws.transcribeAudio(uri));
-    } catch {
-      setError('Transcription failed. You can also type what happened below.');
+      // Pass the UI language so Transcribe picks the right model.
+      setTranscript(await aws.transcribeAudio(uri, lang));
+    } catch (e) {
+      setError(
+        `${e instanceof Error ? e.message : 'Transcription failed.'} You can also type what happened below.`
+      );
     } finally {
       setBusy(false);
     }
@@ -87,8 +90,8 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setError(null);
     try {
       setResult(await aws.analyzeTranscript(transcript));
-    } catch {
-      setError('Analysis failed. Please try again.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Analysis failed. Please try again.');
     } finally {
       setLoading(false);
     }

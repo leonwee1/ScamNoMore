@@ -44,8 +44,12 @@
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|@react-navigation/.*))"
     ],
     "testMatch": [
-      "**/__tests__/**/*.test.ts",
-      "**/__tests__/**/*.test.tsx"
+      "<rootDir>/src/__tests__/**/*.test.ts",
+      "<rootDir>/src/__tests__/**/*.test.tsx"
+    ],
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/backend/"
     ]
   },
   "private": true

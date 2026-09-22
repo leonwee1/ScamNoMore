@@ -43,7 +43,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     try {
       setResult(await aws.analyzeImage(uri));
     } catch (e) {
-      setError('Analysis failed. Please try again.');
+      setError(e instanceof Error ? e.message : 'Analysis failed. Please try again.');
     } finally {
       setLoading(false);
     }

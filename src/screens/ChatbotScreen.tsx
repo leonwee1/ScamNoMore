@@ -37,10 +37,15 @@ export const ChatbotScreen: React.FC = () => {
     try {
       const reply = await aws.chat(message, next);
       setTurns((cur) => [...cur, { role: 'assistant', content: reply }]);
-    } catch {
+    } catch (e) {
+      // Surface the real reason (e.g. backend not configured) instead of a
+      // canned reply, so a broken setup is never mistaken for a real answer.
       setTurns((cur) => [
         ...cur,
-        { role: 'assistant', content: 'Sorry, I had trouble responding. Please try again.' },
+        {
+          role: 'assistant',
+          content: `⚠️ ${e instanceof Error ? e.message : 'I had trouble responding. Please try again.'}`,
+        },
       ]);
     } finally {
       setLoading(false);

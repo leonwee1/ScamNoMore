@@ -1,22 +1,25 @@
 import Constants from 'expo-constants';
 
 /**
- * Runtime configuration for AWS integrations.
+ * Runtime configuration for the AWS backend.
  *
- * Expo Go cannot bundle AWS credentials securely and many AWS SDK transports
- * are not available on-device. The recommended production topology is:
+ * Expo Go cannot hold AWS credentials securely, so the app never calls AWS
+ * directly. It talks to an HTTPS backend that performs the AWS work:
  *
- *   App (Expo) --> API Gateway + Lambda --> Rekognition / Transcribe / Bedrock / DynamoDB
+ *   App (Expo) --> API Gateway + Lambda --> Rekognition / Rekognition Video
+ *                                          Transcribe / Bedrock / DynamoDB
  *
- * so that no long-lived credentials ever live on the device. The service layer
- * below therefore talks to a backend base URL when configured, and otherwise
- * falls back to deterministic on-device mocks (useMockServices = true) so the
- * app is fully demoable in Expo Go with zero cloud setup.
+ * Set `apiBaseUrl` in app.json (expo.extra) to either:
+ *   - your deployed API Gateway stage URL, or
+ *   - your machine's LAN URL while running backend/src/local-server.ts
+ *     (e.g. http://172.20.10.11:3000)
+ *
+ * There is no mock mode: if this is unset, analysis calls fail with a clear
+ * error instead of returning invented results.
  */
 type Extra = {
   awsRegion?: string;
   dynamoTable?: string;
-  useMockServices?: boolean;
   apiBaseUrl?: string;
 };
 
@@ -25,8 +28,5 @@ const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
 export const config = {
   awsRegion: extra.awsRegion ?? 'ap-southeast-1',
   dynamoTable: extra.dynamoTable ?? 'ScamNoMoreScams',
-  /** When true (default in app.json), all services return local mock results. */
-  useMockServices: extra.useMockServices ?? true,
-  /** Base URL of the API Gateway front door (used when not mocking). */
   apiBaseUrl: extra.apiBaseUrl ?? '',
 };

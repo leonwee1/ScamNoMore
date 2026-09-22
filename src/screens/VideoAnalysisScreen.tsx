@@ -35,8 +35,8 @@ export const VideoAnalysisScreen: React.FC = () => {
     setError(null);
     try {
       setResult(await aws.analyzeVideo(uri));
-    } catch {
-      setError('Analysis failed. Please try again.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Analysis failed. Please try again.');
     } finally {
       setLoading(false);
     }

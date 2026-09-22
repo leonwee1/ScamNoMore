@@ -26,9 +26,12 @@ npm install
 npm start          # then press 'i' (iOS), 'a' (Android), or scan the QR in Expo Go
 ```
 
-The app launches in **mock mode** (`app.json` → `expo.extra.useMockServices: true`),
-so every AWS-backed feature returns realistic results locally. To connect real
-AWS services, see [`docs/AWS_SETUP.md`](docs/AWS_SETUP.md).
+> **AWS is required for analysis.** Every scam verdict and chatbot reply comes
+> from AWS Bedrock — there is no mock/offline analyzer. Until you set
+> `apiBaseUrl` in `app.json`, the app shows a warning banner and analysis calls
+> fail with a clear message instead of returning invented results.
+> Setup takes a few minutes: see [`docs/AWS_SETUP.md`](docs/AWS_SETUP.md)
+> (Option A runs the backend locally, no deployment needed).
 
 If the phone cannot reach the dev server over Wi-Fi (or you are on a phone
 hotspot / a network with client isolation), start in tunnel mode:
@@ -65,6 +68,21 @@ node scripts/buildMockDataset.js   # regenerate src/data/scams.json (5000 rows)
 - **Community** — pick a chat room by scam type → live chat session with sample
   messages → post/exit.
 - **Chatbot** — Bedrock-backed Q&A and awareness tips, reachable from anywhere.
+
+## AWS integration (all analysis is LLM-driven)
+
+| Feature | Pipeline |
+| --- | --- |
+| Take picture / Upload image | **Rekognition** (DetectText + DetectLabels + Moderation) → **Bedrock vision** reasons over the evidence *and the actual image pixels* |
+| Upload audio / Say what happened | **Transcribe** (speech→text, 4 languages) → user edits transcript → **Bedrock** |
+| Upload video | **Rekognition Video** (text + labels across sampled frames) → **Bedrock** |
+| Chatbot | **Bedrock** with conversation history |
+
+The backend lives in [`backend/`](backend/) (API Gateway + Lambda, AWS SAM).
+Media is uploaded straight to S3 via presigned URLs, so no AWS credentials are
+ever on the device and large files bypass the API payload limit. Every result
+carries a `signals` object with the raw Rekognition/Transcribe evidence, so you
+can audit exactly what the model was shown.
 
 ## Architecture
 

@@ -34,7 +34,7 @@
     "extra": {
       "awsRegion": "ap-southeast-1",
       "dynamoTable": "ScamNoMoreScams",
-      "useMockServices": true
+      "apiBaseUrl": ""
     }
   }
 }

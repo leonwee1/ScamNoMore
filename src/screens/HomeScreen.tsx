@@ -1,6 +1,7 @@
 import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BackendBanner } from '../components/BackendBanner';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, Muted, SubHeading } from '../components/ui';
 import { useI18n } from '../i18n';
@@ -17,6 +18,7 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
         <ScreenHeader title={t('app.name')} />
+        <BackendBanner />
         <SubHeading>{t('home.prompt')}</SubHeading>
 
         <Card>
