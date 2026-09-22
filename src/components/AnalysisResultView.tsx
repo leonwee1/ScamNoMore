@@ -3,7 +3,8 @@ import { StyleSheet, View } from 'react-native';
 import { AnalysisResult } from '../services/analysis';
 import { probabilityLabel } from '../services/aws';
 import { spacing } from '../theme';
-import { Body, Card, Muted, RiskMeter, SubHeading } from './ui';
+import { RiskGauge } from './RiskGauge';
+import { Body, Card, Muted, SubHeading } from './ui';
 
 /**
  * Renders the scam-analysis result exactly as the wireframe describes: a
@@ -12,7 +13,7 @@ import { Body, Card, Muted, RiskMeter, SubHeading } from './ui';
 export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ result }) => (
   <Card>
     <SubHeading>Analysis result</SubHeading>
-    <RiskMeter
+    <RiskGauge
       probability={result.probability}
       level={result.riskLevel}
       label={probabilityLabel(result.probability)}

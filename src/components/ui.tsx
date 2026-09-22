@@ -81,30 +81,6 @@ export const Muted: React.FC<{
   </Text>
 );
 
-/** Colored risk badge + probability bar for analysis results. */
-export const RiskMeter: React.FC<{ probability: number; level: RiskLevel; label: string }> = ({
-  probability,
-  level,
-  label,
-}) => {
-  const c = riskColor(level);
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <View style={styles.riskRow}>
-        <View style={[styles.badge, { backgroundColor: c }]}>
-          <Text style={styles.badgeText}>{Math.round(probability * 100)}%</Text>
-        </View>
-        <Text style={[styles.riskLabel, { color: c }]}>{label}</Text>
-      </View>
-      <View style={styles.track}>
-        <View
-          style={[styles.fill, { width: `${Math.round(probability * 100)}%`, backgroundColor: c }]}
-        />
-      </View>
-    </View>
-  );
-};
-
 /** Simple horizontal bar row for statistics lists. */
 export const StatBar: React.FC<{ label: string; value: number; max: number }> = ({
   label,
@@ -173,12 +149,6 @@ const styles = StyleSheet.create({
   h2: { color: colors.text, fontSize: font.h2, fontWeight: '700' },
   body: { color: colors.text, fontSize: font.body, lineHeight: 21 },
   muted: { color: colors.textMuted, fontSize: font.small, lineHeight: 19 },
-  riskRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  badge: { borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { color: colors.white, fontWeight: '800' },
-  riskLabel: { fontSize: font.h3, fontWeight: '700' },
-  track: { height: 10, backgroundColor: colors.surfaceAlt, borderRadius: 5, overflow: 'hidden' },
-  fill: { height: 10, borderRadius: 5 },
   statRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 3 },
   statLabel: { color: colors.text, fontSize: font.small, width: 120 },
   statTrack: { flex: 1, height: 8, backgroundColor: colors.surfaceAlt, borderRadius: 4, overflow: 'hidden' },
