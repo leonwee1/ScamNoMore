@@ -1,10 +1,16 @@
-import { Audio } from 'expo-av';
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 import React, { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnalysisResultView } from '../components/AnalysisResultView';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { Body, Button, Card, Muted, SubHeading } from '../components/ui';
+import { Button, Card, Muted, SubHeading } from '../components/ui';
 import { useI18n } from '../i18n';
 import { AnalysisResult } from '../services/analysis';
 import { aws } from '../services/aws';
@@ -14,13 +20,18 @@ import { colors, font, radius, spacing } from '../theme';
 /**
  * Voice flow (wireframe): upload audio OR record ("say what happened", max 5
  * min) -> Transcribe -> editable transcript -> Bedrock analysis.
+ *
+ * Uses expo-audio (SDK 54+; expo-av was removed). The recorder is hook-based:
+ * useAudioRecorder gives an imperative handle whose .uri is populated after
+ * .stop().
  */
 export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   const { t } = useI18n();
   const mode: 'record' | 'upload' = route.params?.mode ?? 'record';
 
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
+
   const [transcript, setTranscript] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,25 +52,20 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
 
   const toggleRecording = async () => {
     try {
-      if (isRecording && recording) {
-        setIsRecording(false);
-        await recording.stopAndUnloadAsync();
-        const uri = recording.getURI();
-        setRecording(null);
+      if (recorderState.isRecording) {
+        await recorder.stop();
+        const uri = recorder.uri;
         if (uri) await transcribe(uri);
         return;
       }
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (!perm.granted) {
         setError('Microphone permission denied.');
         return;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording: rec } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      setRecording(rec);
-      setIsRecording(true);
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
     } catch {
       setError('Could not access the microphone.');
     }
@@ -106,7 +112,11 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
           <Muted>{t('analyze.maxDuration')}</Muted>
           {mode === 'record' ? (
             <Button
-              title={isRecording ? '■ Stop recording' : `● ${t('analyze.startRecording')}`}
+              title={
+                recorderState.isRecording
+                  ? '■ Stop recording'
+                  : `● ${t('analyze.startRecording')}`
+              }
               onPress={toggleRecording}
             />
           ) : (

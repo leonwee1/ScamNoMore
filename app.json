@@ -25,7 +25,12 @@
     },
     "plugins": [
       "expo-image-picker",
-      "expo-av"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "ScamNoMore uses the microphone to analyze suspicious voice recordings."
+        }
+      ]
     ],
     "extra": {
       "awsRegion": "ap-southeast-1",

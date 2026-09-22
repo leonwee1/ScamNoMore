@@ -1,8 +1,9 @@
 import * as ImagePicker from 'expo-image-picker';
 
 /**
- * Expo-safe media helpers. All modules used here (expo-image-picker, expo-av)
- * are supported in Expo Go, so no custom native code is required.
+ * Expo-safe media helpers. All modules used here (expo-image-picker, and
+ * expo-audio in the voice screen) are supported in Expo Go, so no custom
+ * native code is required.
  */
 
 export async function pickImage(fromCamera: boolean): Promise<string | null> {
