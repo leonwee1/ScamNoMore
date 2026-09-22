@@ -30,7 +30,7 @@ specific place, source, year).
 cd backend
 npm install
 copy .env.example .env        # paste your key into .env
-npm start                     # http://localhost:3000
+npm run dev                   # http://localhost:3000
 
 # 2. App — set apiBaseUrl in app.json to your LAN IP, e.g. http://172.20.10.11:3000
 cd ..
@@ -40,6 +40,17 @@ npx expo start -c
 
 Scan the QR code in Expo Go. See [`docs/SETUP.md`](docs/SETUP.md) for finding your
 LAN IP and troubleshooting.
+
+### Sharing the app with others
+
+With the local setup above, the AI features only work for devices on **your
+Wi-Fi** (the backend URL is a private LAN address). To let anyone use it from any
+network, deploy the backend once to Render — it gets a permanent HTTPS URL and
+your laptop is no longer needed: **[`docs/DEPLOY_RENDER.md`](docs/DEPLOY_RENDER.md)**.
+
+The backend supports a **shared-secret header** (`APP_SHARED_SECRET` ↔ `appSecret`
+in `app.json`) and **per-IP rate limiting** (burst + daily cap) so a public URL
+can't be used to run up your OpenAI bill.
 
 ### Commands
 

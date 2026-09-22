@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "description": "ScamNoMore backend — OpenAI (gpt-4o vision, Whisper) scam analysis + chatbot",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "start": "ts-node src/local-server.ts",
     "dev": "ts-node src/local-server.ts",
     "build": "tsc",
+    "start": "node dist/local-server.js",
     "typecheck": "tsc --noEmit",
     "test": "jest"
   },

@@ -18,10 +18,20 @@ import Constants from 'expo-constants';
  */
 type Extra = {
   apiBaseUrl?: string;
+  appSecret?: string;
 };
 
 const extra = (Constants.expoConfig?.extra ?? {}) as Extra;
 
 export const config = {
   apiBaseUrl: extra.apiBaseUrl ?? '',
+  /**
+   * Shared secret sent as `x-app-secret`. It must match APP_SHARED_SECRET on the
+   * backend.
+   *
+   * NOTE: this is bundled into the app, so it is not cryptographically secret —
+   * someone who extracts the bundle can read it. Its purpose is to stop casual
+   * abuse of your public backend URL, not to provide real user authentication.
+   */
+  appSecret: extra.appSecret ?? '',
 };

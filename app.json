@@ -32,7 +32,8 @@
       ]
     ],
     "extra": {
-      "apiBaseUrl": ""
+      "apiBaseUrl": "http://172.20.10.11:3000",
+      "appSecret": ""
     }
   }
 }

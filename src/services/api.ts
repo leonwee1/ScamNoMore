@@ -46,10 +46,14 @@ async function request<T>(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+  const headers: Record<string, string> = { 'Content-Type': init.contentType };
+  // Shared secret so strangers who find the public URL can't spend the quota.
+  if (config.appSecret) headers['x-app-secret'] = config.appSecret;
+
   try {
     const res = await fetch(`${base}${pathName}`, {
       method: 'POST',
-      headers: { 'Content-Type': init.contentType },
+      headers,
       body: init.body,
       signal: controller.signal,
     });
@@ -62,6 +66,20 @@ async function request<T>(
         if (parsed.message) message = parsed.message;
       } catch {
         if (text) message = text.slice(0, 300);
+      }
+
+      // Turn the two protection responses into actionable guidance.
+      if (res.status === 401) {
+        throw new Error(
+          'Not authorised by the server. Check that "appSecret" in app.json matches ' +
+            'APP_SHARED_SECRET on the backend.'
+        );
+      }
+      if (res.status === 429) {
+        const retry = res.headers.get('Retry-After');
+        throw new Error(
+          `${message}${retry ? ` Please wait about ${retry}s and try again.` : ''}`
+        );
       }
       throw new Error(message);
     }

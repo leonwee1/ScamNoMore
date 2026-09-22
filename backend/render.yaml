@@ -1,0 +1,30 @@
+# Render Blueprint — optional one-click alternative to the dashboard steps.
+#
+# Use it via Render → New → Blueprint → pick this repo. Render reads this file and
+# creates the service. You will still be prompted for the two secret values,
+# because they are marked sync:false (never committed to git).
+#
+# Manual dashboard setup is documented in docs/DEPLOY_RENDER.md.
+services:
+  - type: web
+    name: scamnomore-backend
+    runtime: node
+    plan: free
+    # The backend is a subfolder of the repo.
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false # you paste this in the dashboard
+      - key: APP_SHARED_SECRET
+        sync: false # you paste this in the dashboard
+      - key: OPENAI_CHAT_MODEL
+        value: gpt-4o
+      - key: OPENAI_TRANSCRIBE_MODEL
+        value: whisper-1
+      - key: RATE_LIMIT_BURST_MAX
+        value: "15"
+      - key: RATE_LIMIT_DAILY_MAX
+        value: "200"

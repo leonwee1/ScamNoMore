@@ -38,7 +38,7 @@ Get a key at <https://platform.openai.com/api-keys>.
 ```powershell
 cd backend
 npm install
-npm start
+npm run dev
 ```
 
 You should see:
@@ -125,3 +125,4 @@ what the model was shown.
 | `429 quota exceeded` | Add billing credit to your OpenAI account. |
 | Video returns "no speech detected" | The clip is silent. Screenshot it and use the image check instead. |
 | `EADDRINUSE :::3000` | Port already used. Stop the old process or set `PORT=3001`. |
+| Want a permanent public URL? | See [DEPLOY_RENDER.md](DEPLOY_RENDER.md). |

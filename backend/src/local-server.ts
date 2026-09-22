@@ -1,24 +1,16 @@
 /**
- * ScamNoMore backend server.
+ * ScamNoMore backend server (runs locally and on Render).
  *
  * ── WHERE THE OPENAI KEY GOES ────────────────────────────────────────────────
- * NOT in this file. Put it in `backend/.env`, which is gitignored:
- *
- *     OPENAI_API_KEY=sk-proj-xxxxxxxx
- *
- * dotenv (below) loads that file into process.env at startup, and
- * src/lib/openai.ts reads process.env.OPENAI_API_KEY. Never hardcode the key in
- * source, and never put it in the Expo app — anything bundled into the app can
- * be extracted from the build and billed to your account.
+ * NOT in this file.
+ *   Local : backend/.env  ->  OPENAI_API_KEY=sk-proj-...   (gitignored)
+ *   Render: dashboard -> Environment -> OPENAI_API_KEY
+ * dotenv loads .env at startup; src/lib/openai.ts reads process.env.
+ * Never hardcode the key, and never ship it inside the Expo app.
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * Usage:
- *   cd backend
- *   npm install
- *   copy .env.example .env      # then paste your key into .env
- *   npm start
- *
- * Then set apiBaseUrl in app.json to http://<your-lan-ip>:3000
+ * Local:  npm run dev
+ * Render: build `npm install && npm run build`, start `npm start`
  */
 import 'dotenv/config';
 
@@ -28,8 +20,10 @@ import { handler as analyzeText } from './handlers/analyzeText';
 import { handler as analyzeVideo } from './handlers/analyzeVideo';
 import { handler as chat } from './handlers/chat';
 import { handler as transcribe } from './handlers/transcribe';
+import { AUTH_HEADER, authEnabled, checkAuth } from './lib/auth';
 import type { Handler } from './lib/http';
 import { MAX_MEDIA_BYTES } from './lib/openai';
+import { checkRateLimit, clientIdFrom, rateLimitConfig } from './lib/rateLimit';
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -46,11 +40,10 @@ const ROUTES: Record<string, Handler> = {
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': `Content-Type, ${AUTH_HEADER}`,
   'Access-Control-Allow-Methods': 'OPTIONS,POST,GET',
 };
 
-/** Collect the raw body, rejecting oversized uploads early. */
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -69,8 +62,13 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
   });
 }
 
-function send(res: ServerResponse, statusCode: number, body: unknown): void {
-  res.writeHead(statusCode, { 'Content-Type': 'application/json', ...CORS });
+function send(
+  res: ServerResponse,
+  statusCode: number,
+  body: unknown,
+  extraHeaders: Record<string, string> = {}
+): void {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json', ...CORS, ...extraHeaders });
   res.end(JSON.stringify(body));
 }
 
@@ -82,6 +80,8 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return res.end();
   }
 
+  // Health check is public so Render's monitor (and you) can reach it.
+  // It never reveals the key itself, only whether one is present.
   if (path === '/health') {
     return send(res, 200, {
       ok: true,
@@ -89,12 +89,34 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       chatModel: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o',
       transcribeModel: process.env.OPENAI_TRANSCRIBE_MODEL ?? 'whisper-1',
       apiKeyConfigured: Boolean(process.env.OPENAI_API_KEY),
+      authRequired: authEnabled(),
+      rateLimits: rateLimitConfig(),
     });
   }
 
   const route = ROUTES[path];
   if (!route || req.method !== 'POST') {
     return send(res, 404, { message: `No route for ${req.method} ${path}` });
+  }
+
+  // 1. Shared-secret check — blocks strangers who find the public URL.
+  const auth = checkAuth(req.headers[AUTH_HEADER] as string | undefined);
+  if (!auth.allowed) {
+    console.warn(`401 ${path} — ${auth.reason}`);
+    return send(res, 401, { message: auth.reason ?? 'Unauthorized' });
+  }
+
+  // 2. Rate limit — caps how much of your OpenAI quota any one client can burn.
+  const clientId = clientIdFrom(req.headers, req.socket.remoteAddress ?? undefined);
+  const limit = checkRateLimit(clientId);
+  if (!limit.allowed) {
+    console.warn(`429 ${path} — ${clientId} — ${limit.reason}`);
+    return send(
+      res,
+      429,
+      { message: limit.reason ?? 'Too many requests' },
+      limit.retryAfter ? { 'Retry-After': String(limit.retryAfter) } : {}
+    );
   }
 
   const started = Date.now();
@@ -117,13 +139,24 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
 server.listen(PORT, () => {
   const keyOk = Boolean(process.env.OPENAI_API_KEY);
-  console.log(`\nScamNoMore backend listening on http://0.0.0.0:${PORT}`);
+  const limits = rateLimitConfig();
+  console.log(`\nScamNoMore backend listening on port ${PORT}`);
   console.log(`  chat model : ${process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o'}`);
   console.log(`  whisper    : ${process.env.OPENAI_TRANSCRIBE_MODEL ?? 'whisper-1'}`);
-  console.log(`  API key    : ${keyOk ? 'loaded from environment ✓' : '*** MISSING ***'}`);
+  console.log(`  OpenAI key : ${keyOk ? 'loaded ✓' : '*** MISSING ***'}`);
+  console.log(`  auth       : ${authEnabled() ? 'shared secret required ✓' : '*** OPEN (no secret) ***'}`);
+  console.log(
+    `  rate limit : ${limits.burstMax}/${limits.burstWindowMs / 1000}s burst, ${limits.dailyMax}/day`
+  );
+
   if (!keyOk) {
-    console.log('\n  ⚠  Create backend/.env containing:');
-    console.log('       OPENAI_API_KEY=sk-proj-your-key-here\n');
+    console.log('\n  ⚠  Set OPENAI_API_KEY (backend/.env locally, or Render → Environment)\n');
+  }
+  if (!authEnabled()) {
+    console.log(
+      '\n  ⚠  APP_SHARED_SECRET is not set — anyone who finds this URL can spend your\n' +
+        '     OpenAI quota. Fine on localhost; SET IT before deploying publicly.\n'
+    );
   }
   console.log(`Routes: ${Object.keys(ROUTES).join(', ')}, /health\n`);
 });
