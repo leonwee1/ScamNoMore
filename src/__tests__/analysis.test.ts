@@ -124,6 +124,16 @@ describe('analysis response safety', () => {
     expect('probability' in result).toBe(false);
   });
 
+  it('preserves evidence-specific reasons from an unable response', () => {
+    const result = normaliseAnalysisResult({
+      assessmentStatus: 'unable_to_assess',
+      reasons: ['The image shows a C++ stack trace, not a message or offer.'],
+      advice: 'Verify the original content through another channel.',
+      signals: { source: 'image', unableToAssessReason: 'insufficient-evidence' },
+    });
+    expect(result.reasons).toEqual(['The image shows a C++ stack trace, not a message or offer.']);
+  });
+
   it('rejects a malformed assessed object at the final render guard', () => {
     const malformed = {
       assessmentStatus: 'assessed',

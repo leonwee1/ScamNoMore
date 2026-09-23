@@ -40,18 +40,21 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
   const translated = useTranslatedAnalysis(result);
 
   const reasons = !assessed
-    ? [
-        noSpeech
-          ? t('analyze.noSpeech.reason')
-          : insufficientEvidence
-            ? t('analyze.unable.insufficientReason')
-            : t('analyze.unable.invalidReason'),
-        noSpeech
-          ? source === 'video'
-            ? t('analyze.noSpeech.video')
-            : t('analyze.noSpeech.voice')
-          : t('analyze.unable.notSafe'),
-      ]
+    ? noSpeech
+      ? [
+          t('analyze.noSpeech.reason'),
+          source === 'video' ? t('analyze.noSpeech.video') : t('analyze.noSpeech.voice'),
+        ]
+      : [
+          ...(result.reasons.length
+            ? result.reasons
+            : [
+                insufficientEvidence
+                  ? t('analyze.unable.insufficientReason')
+                  : t('analyze.unable.invalidReason'),
+              ]),
+          t('analyze.unable.notSafe'),
+        ]
     : translated.reasons;
 
   const advice = !assessed
