@@ -123,6 +123,17 @@ describe('analysis response safety', () => {
     expect(result.signals?.unableToAssessReason).toBe('insufficient-evidence');
     expect('probability' in result).toBe(false);
   });
+
+  it('rejects a malformed assessed object at the final render guard', () => {
+    const malformed = {
+      assessmentStatus: 'assessed',
+      probability: Number.NaN,
+      riskLevel: 'safe',
+      reasons: [],
+      advice: '',
+    } as unknown as import('../services/analysis').AnalysisResult;
+    expect(isAssessed(malformed)).toBe(false);
+  });
 });
 
 describe('no mock analyzers remain', () => {

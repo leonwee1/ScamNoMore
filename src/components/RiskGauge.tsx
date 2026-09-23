@@ -67,6 +67,11 @@ export const RiskGauge: React.FC<{
   a11yLabel?: string;
   size?: number;
 }> = ({ probability, level, label, a11yLabel, size = 240 }) => {
+  // A gauge must never turn an invalid model value into NaN% or a misleading
+  // green score. AnalysisResultView normally filters this case via isAssessed;
+  // this second guard protects direct/stale callers as well.
+  if (!Number.isFinite(probability) || probability < 0 || probability > 1) return null;
+
   const width = size;
   const strokeWidth = Math.round(size * 0.1);
   const cx = width / 2;

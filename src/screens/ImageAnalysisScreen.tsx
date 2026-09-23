@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnalysisResultView } from '../components/AnalysisResultView';
 import { useMediaPrivacyConsent } from '../components/MediaPrivacyConsent';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { Body, Button, Card, Muted } from '../components/ui';
+import { Button, Card, Muted } from '../components/ui';
 import { useI18n } from '../i18n';
 import { AnalysisResult } from '../services/analysis';
 import { api, MAX_MEDIA_MB } from '../services/api';
@@ -69,11 +69,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
           {/* The group name now lives in the stack header, so repeating it here
               would be a third copy of the same words. */}
           <Muted>{t('analyze.imageLimits', { size: MAX_MEDIA_MB })}</Muted>
-          {image ? (
-            <Image source={{ uri: image.uri }} style={styles.preview} resizeMode="cover" />
-          ) : (
-            <Body>{t('analyze.selectImage')}</Body>
-          )}
+          {image ? <Image source={{ uri: image.uri }} style={styles.preview} resizeMode="cover" /> : null}
           <Button
             title={mode === 'camera' ? t('home.takePicture') : t('home.uploadImage')}
             variant="secondary"

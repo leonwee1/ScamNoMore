@@ -62,7 +62,15 @@ export type AnalysisResult = AssessedAnalysisResult | UnableToAssessResult;
 
 /** Use this guard before rendering a probability, risk band, or gauge. */
 export function isAssessed(result: AnalysisResult): result is AssessedAnalysisResult {
-  return result.assessmentStatus === 'assessed';
+  // Keep this guard defensive at runtime too: JavaScript can still receive a
+  // malformed object from an older/stale bundle even though TypeScript says the
+  // assessed branch contains a number.
+  return (
+    result.assessmentStatus === 'assessed' &&
+    Number.isFinite(result.probability) &&
+    result.probability >= 0 &&
+    result.probability <= 1
+  );
 }
 
 /** Build a scoreless result for evidence that cannot safely be assessed. */
