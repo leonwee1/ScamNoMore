@@ -63,8 +63,10 @@ export const RiskGauge: React.FC<{
   probability: number;
   level: RiskLevel;
   label: string;
+  /** Localized screen-reader description. Falls back to an English sentence. */
+  a11yLabel?: string;
   size?: number;
-}> = ({ probability, level, label, size = 240 }) => {
+}> = ({ probability, level, label, a11yLabel, size = 240 }) => {
   const width = size;
   const strokeWidth = Math.round(size * 0.1);
   const cx = width / 2;
@@ -85,7 +87,11 @@ export const RiskGauge: React.FC<{
 
   return (
     <View style={styles.wrap}>
-      <Svg width={width} height={height} accessibilityLabel={`${label}. ${pct} percent scam probability.`}>
+      <Svg
+        width={width}
+        height={height}
+        accessibilityLabel={a11yLabel ?? `${label}. ${pct} percent scam probability.`}
+      >
         {/* Track + coloured risk bands */}
         <G>
           <Path

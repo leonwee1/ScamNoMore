@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "dotenv": "^16.4.5",
+    "ffmpeg-static": "5.2.0",
     "openai": "^4.67.0"
   },
   "devDependencies": {
@@ -28,6 +29,8 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/__tests__/**/*.test.ts"]
+    "testMatch": [
+      "**/__tests__/**/*.test.ts"
+    ]
   }
 }

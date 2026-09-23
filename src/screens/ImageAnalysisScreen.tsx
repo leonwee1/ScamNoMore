@@ -12,7 +12,7 @@ import { colors, radius, spacing } from '../theme';
 
 /** Image analysis flow: take/upload picture -> gpt-4o vision -> scam result. */
 export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const mode: 'camera' | 'library' = route.params?.mode ?? 'library';
   const [uri, setUri] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -24,7 +24,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setResult(null);
     const picked = await pickImage(mode === 'camera');
     if (!picked) {
-      setError('No image selected or permission denied.');
+      setError(t('analyze.noImage'));
       return;
     }
     setUri(picked);
@@ -41,19 +41,13 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setLoading(true);
     setError(null);
     try {
-      setResult(await api.analyzeImage(uri));
+      // lang tells the model which language to write its reasons/advice in.
+      setResult(await api.analyzeImage(uri, lang));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Analysis failed. Please try again.');
+      setError(e instanceof Error ? e.message : t('analyze.failed'));
     } finally {
       setLoading(false);
     }
-  };
-
-  const reset = () => {
-    setUri(null);
-    setResult(null);
-    setError(null);
-    choose();
   };
 
   return (
@@ -66,7 +60,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
           {uri ? (
             <Image source={{ uri }} style={styles.preview} resizeMode="cover" />
           ) : (
-            <Body>Select an image of the suspicious email / message.</Body>
+            <Body>{t('analyze.selectImage')}</Body>
           )}
           <Button
             title={mode === 'camera' ? t('home.takePicture') : t('home.uploadImage')}
@@ -83,9 +77,6 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
 
         {error ? <Muted style={{ color: colors.high }}>{error}</Muted> : null}
         {result ? <AnalysisResultView result={result} /> : null}
-        {result ? (
-          <Button title={`${t('analyze.checkAnother')} 🖼️`} variant="secondary" onPress={reset} />
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

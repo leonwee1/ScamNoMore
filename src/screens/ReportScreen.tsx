@@ -5,10 +5,11 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, ChipSelect, Muted, SubHeading } from '../components/ui';
 import { scamStore, scamTypes, towns } from '../data/scamStore';
 import { useI18n } from '../i18n';
+import { useDomain } from '../i18n/useDomain';
+import { deviceToday } from '../services/dates';
 import { colors, font, radius, spacing } from '../theme';
 
 const MAX_WORDS = 200;
-const todayISO = () => new Date().toISOString().slice(0, 10);
 const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
 
 /**
@@ -19,10 +20,11 @@ const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
  */
 export const ReportScreen: React.FC = () => {
   const { t } = useI18n();
+  const domain = useDomain();
   const allTowns = useMemo(() => towns(), []);
   const allTypes = useMemo(() => scamTypes(), []);
 
-  const [date, setDate] = useState(todayISO());
+  const [date, setDate] = useState(deviceToday());
   const [description, setDescription] = useState('');
   const [town, setTown] = useState<string | undefined>();
   const [scamType, setScamType] = useState<string | undefined>();
@@ -43,7 +45,7 @@ export const ReportScreen: React.FC = () => {
   };
 
   const reset = () => {
-    setDate(todayISO());
+    setDate(deviceToday());
     setDescription('');
     setTown(undefined);
     setScamType(undefined);
@@ -61,7 +63,7 @@ export const ReportScreen: React.FC = () => {
           <Card>
             <Body>{t('report.comfort')}</Body>
           </Card>
-          <Muted>Total cases in database: {scamStore.count()}</Muted>
+          <Muted>{t('report.totalCases', { count: scamStore.count() })}</Muted>
           <Button title={t('report.another')} onPress={reset} />
         </ScrollView>
       </SafeAreaView>
@@ -79,7 +81,7 @@ export const ReportScreen: React.FC = () => {
             style={styles.input}
             value={date}
             onChangeText={setDate}
-            placeholder="YYYY-MM-DD"
+            placeholder={t('report.datePlaceholder')}
             placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
           />
@@ -96,20 +98,34 @@ export const ReportScreen: React.FC = () => {
             style={[styles.input, styles.textarea]}
             value={description}
             onChangeText={setDescription}
-            placeholder="Describe what happened (key info like amount, platform, contact)…"
+            placeholder={t('report.descriptionPlaceholder')}
             placeholderTextColor={colors.textMuted}
             multiline
           />
         </Card>
 
+        {/* labelOf only changes what is DISPLAYED. onChange still yields the
+            canonical English value, which is what addReport() stores, so a
+            report filed in Tamil lands in the same dataset rows as an English
+            one and remains searchable. */}
         <Card>
           <Muted>{t('report.town')} *</Muted>
-          <ChipSelect options={allTowns} value={town} onChange={setTown} />
+          <ChipSelect
+            options={allTowns}
+            value={town}
+            onChange={setTown}
+            labelOf={domain.town}
+          />
         </Card>
 
         <Card>
           <Muted>{t('report.scamType')} *</Muted>
-          <ChipSelect options={allTypes} value={scamType} onChange={setScamType} />
+          <ChipSelect
+            options={allTypes}
+            value={scamType}
+            onChange={setScamType}
+            labelOf={domain.scamType}
+          />
         </Card>
 
         <Card>

@@ -10,6 +10,12 @@ export interface Req {
   raw: Buffer;
   /** Request Content-Type header. */
   contentType: string;
+  /**
+   * Parsed query-string parameters. Media endpoints send the file as the whole
+   * body, so options such as `?language=en` travel in the query rather than a
+   * JSON field.
+   */
+  query?: Record<string, string>;
 }
 
 export interface Res {
@@ -54,13 +60,20 @@ const EXT_BY_MIME: Record<string, string> = {
 };
 
 /**
+ * Map a Content-Type to a file extension. ffmpeg and Whisper both infer the
+ * container format from the extension, so this needs to be right.
+ */
+export function extensionFor(contentType: string, fallbackExt: string): string {
+  const mime = contentType.split(';')[0].trim().toLowerCase();
+  return EXT_BY_MIME[mime] ?? fallbackExt;
+}
+
+/**
  * Whisper picks its decoder from the filename extension, so derive a sensible
  * one from the Content-Type the app sent.
  */
 export function filenameFor(contentType: string, fallbackExt: string): string {
-  const mime = contentType.split(';')[0].trim().toLowerCase();
-  const ext = EXT_BY_MIME[mime] ?? fallbackExt;
-  return `upload.${ext}`;
+  return `upload.${extensionFor(contentType, fallbackExt)}`;
 }
 
 /** Normalise a Content-Type header down to its MIME type. */

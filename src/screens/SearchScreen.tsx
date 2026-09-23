@@ -6,6 +6,7 @@ import { Body, Button, Card, Muted, StatBar, SubHeading } from '../components/ui
 import { computeStats, searchScams } from '../data/scamStore';
 import { ScamRecord } from '../data/types';
 import { useI18n } from '../i18n';
+import { useDomain } from '../i18n/useDomain';
 import { colors, font, radius, spacing } from '../theme';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -17,6 +18,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  */
 export const SearchScreen: React.FC = () => {
   const { t } = useI18n();
+  const domain = useDomain();
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [keywords, setKeywords] = useState('');
@@ -53,7 +55,7 @@ export const SearchScreen: React.FC = () => {
               style={[styles.input, styles.dateInput]}
               value={from}
               onChangeText={setFrom}
-              placeholder="From (YYYY-MM-DD)"
+              placeholder={t('search.from')}
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
             />
@@ -61,7 +63,7 @@ export const SearchScreen: React.FC = () => {
               style={[styles.input, styles.dateInput]}
               value={to}
               onChangeText={setTo}
-              placeholder="To (YYYY-MM-DD)"
+              placeholder={t('search.to')}
               placeholderTextColor={colors.textMuted}
               autoCapitalize="none"
             />
@@ -72,7 +74,7 @@ export const SearchScreen: React.FC = () => {
             style={styles.input}
             value={keywords}
             onChangeText={setKeywords}
-            placeholder="e.g. PayNow, Carousell, OTP"
+            placeholder={t('search.keywordsPlaceholder')}
             placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
           />
@@ -89,9 +91,7 @@ export const SearchScreen: React.FC = () => {
           <>
             <Card>
               <SubHeading>{t('search.results')}</SubHeading>
-              <Body>
-                {stats.total} case{stats.total === 1 ? '' : 's'} found
-              </Body>
+              <Body>{t('search.casesFound', { count: stats.total })}</Body>
               {stats.total === 0 ? <Muted>{t('search.noResults')}</Muted> : null}
             </Card>
 
@@ -100,16 +100,21 @@ export const SearchScreen: React.FC = () => {
                 <Card>
                   <SubHeading>{t('search.byTown')}</SubHeading>
                   {stats.byTown.slice(0, 12).map((row) => (
-                    <StatBar key={row.town} label={row.town} value={row.count} max={maxTown} />
+                    <StatBar
+                      key={row.town}
+                      label={domain.town(row.town)}
+                      value={row.count}
+                      max={maxTown}
+                    />
                   ))}
                 </Card>
 
                 <Card>
-                  <SubHeading>Top scam types</SubHeading>
+                  <SubHeading>{t('search.topTypes')}</SubHeading>
                   {stats.byType.slice(0, 8).map((row) => (
                     <StatBar
                       key={row.type}
-                      label={row.type.replace(' Scam', '')}
+                      label={domain.scamTypeShort(row.type)}
                       value={row.count}
                       max={stats.byType[0].count}
                     />
@@ -117,27 +122,33 @@ export const SearchScreen: React.FC = () => {
                 </Card>
 
                 <Card>
-                  <SubHeading>Matching cases</SubHeading>
+                  <SubHeading>{t('search.matchingCases')}</SubHeading>
                   {results!.slice(0, 40).map((r) => (
                     <View key={r.id} style={styles.caseRow}>
                       <Body style={{ fontWeight: '700' }}>
-                        {r.scamType.replace(' Scam', '')} · {r.town}
+                        {domain.scamTypeShort(r.scamType)} · {domain.town(r.town)}
                       </Body>
+                      {/* specificPlace is a street address or landmark
+                          ("Blk 101 Ang Mo Kio Ave 3", "VivoCity"). Addresses are
+                          not localized — a translated address is harder to act
+                          on, not easier. */}
                       <Muted>
                         {r.dateReported} · {r.specificPlace}
                       </Muted>
-                      <Muted numberOfLines={1}>{r.keywords.join(', ')}</Muted>
+                      <Muted numberOfLines={1}>{domain.keywords(r.keywords).join(', ')}</Muted>
                     </View>
                   ))}
                   {results!.length > 40 ? (
-                    <Muted>Showing first 40 of {results!.length}. Refine your search to narrow down.</Muted>
+                    <Muted>
+                      {t('search.showingFirst', { shown: 40, total: results!.length })}
+                    </Muted>
                   ) : null}
                 </Card>
               </>
             ) : null}
           </>
         ) : (
-          <Muted>Set your filters and tap “{t('search.go')}”.</Muted>
+          <Muted>{t('search.setFilters', { action: t('search.go') })}</Muted>
         )}
       </ScrollView>
     </SafeAreaView>

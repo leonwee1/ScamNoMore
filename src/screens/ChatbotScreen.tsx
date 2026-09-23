@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -15,17 +15,26 @@ import { colors, font, radius, spacing } from '../theme';
 
 /** OpenAI-powered chatbot for scam Q&A and awareness tips. */
 export const ChatbotScreen: React.FC = () => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  // Seeded from the dictionary, and re-seeded below if the language changes
+  // before the first message is sent.
   const [turns, setTurns] = useState<ChatTurn[]>([
-    {
-      role: 'assistant',
-      content:
-        'Hi! I\u2019m the ScamNoMore assistant. Ask me anything about scams, or describe a message/call and I\u2019ll help you spot red flags.',
-    },
+    { role: 'assistant', content: t('chatbot.greeting') },
   ]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  // Re-translate the opening line when the language changes, but only while the
+  // conversation is still untouched — rewriting real history would be wrong.
+  useEffect(() => {
+    setTurns((cur) =>
+      cur.length === 1 && cur[0].role === 'assistant'
+        ? [{ role: 'assistant', content: t('chatbot.greeting') }]
+        : cur
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
 
   const send = async () => {
     const message = draft.trim();
@@ -35,7 +44,8 @@ export const ChatbotScreen: React.FC = () => {
     setDraft('');
     setLoading(true);
     try {
-      const reply = await api.chat(message, next);
+      // lang tells the model which language to answer in.
+      const reply = await api.chat(message, next, lang);
       setTurns((cur) => [...cur, { role: 'assistant', content: reply }]);
     } catch (e) {
       // Surface the real reason (e.g. backend not configured) instead of a
@@ -44,7 +54,7 @@ export const ChatbotScreen: React.FC = () => {
         ...cur,
         {
           role: 'assistant',
-          content: `⚠️ ${e instanceof Error ? e.message : 'I had trouble responding. Please try again.'}`,
+          content: `⚠️ ${e instanceof Error ? e.message : t('chatbot.error')}`,
         },
       ]);
     } finally {
@@ -77,7 +87,7 @@ export const ChatbotScreen: React.FC = () => {
               </Body>
             </View>
           ))}
-          {loading ? <Muted>Assistant is typing…</Muted> : null}
+          {loading ? <Muted>{t('chatbot.typing')}</Muted> : null}
         </ScrollView>
 
         <View style={styles.inputRow}>
@@ -85,12 +95,17 @@ export const ChatbotScreen: React.FC = () => {
             style={styles.input}
             value={draft}
             onChangeText={setDraft}
-            placeholder="Ask about a scam…"
+            placeholder={t('chatbot.placeholder')}
             placeholderTextColor={colors.textMuted}
             onSubmitEditing={send}
             returnKeyType="send"
           />
-          <Button title="Send" onPress={send} loading={loading} style={{ paddingHorizontal: 18 }} />
+          <Button
+            title={t('chatbot.send')}
+            onPress={send}
+            loading={loading}
+            style={{ paddingHorizontal: 18 }}
+          />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -14,19 +14,8 @@ export const ScreenHeader: React.FC<{ title: string }> = ({ title }) => {
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.row}>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
-        <Pressable
-          onPress={() => navigation.navigate('Chatbot')}
-          style={styles.chatBtn}
-          accessibilityRole="button"
-          accessibilityLabel={t('chatbot.title')}
-        >
-          <Text style={styles.chatText}>💬 {t('chatbot.title')}</Text>
-        </Pressable>
-      </View>
+      {/* Language selector sits ABOVE the title + Chatbot row, so the choice of
+          language is the first control on every screen. */}
       <View style={styles.langRow}>
         {LANGS.map((l) => (
           <Pressable
@@ -41,6 +30,19 @@ export const ScreenHeader: React.FC<{ title: string }> = ({ title }) => {
             </Text>
           </Pressable>
         ))}
+      </View>
+      <View style={styles.row}>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+        <Pressable
+          onPress={() => navigation.navigate('Chatbot')}
+          style={styles.chatBtn}
+          accessibilityRole="button"
+          accessibilityLabel={t('chatbot.title')}
+        >
+          <Text style={styles.chatText}>💬 {t('chatbot.title')}</Text>
+        </Pressable>
       </View>
     </View>
   );

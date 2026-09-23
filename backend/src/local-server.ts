@@ -20,15 +20,21 @@ import { handler as analyzeText } from './handlers/analyzeText';
 import { handler as analyzeVideo } from './handlers/analyzeVideo';
 import { handler as chat } from './handlers/chat';
 import { handler as transcribe } from './handlers/transcribe';
+import { MAX_UPLOAD_BYTES } from './lib/audio';
 import { AUTH_HEADER, authEnabled, checkAuth } from './lib/auth';
 import type { Handler } from './lib/http';
-import { MAX_MEDIA_BYTES } from './lib/openai';
 import { checkRateLimit, clientIdFrom, rateLimitConfig } from './lib/rateLimit';
 
 const PORT = Number(process.env.PORT ?? 3000);
 
-/** Hard cap on request size; Whisper itself rejects anything over 25 MB. */
-const MAX_BODY_BYTES = MAX_MEDIA_BYTES + 1024 * 1024;
+/**
+ * Hard cap on request size.
+ *
+ * Well above OpenAI's 25 MB transcription limit on purpose: media uploads are
+ * compressed to 16 kHz mono MP3 before transcription (see lib/audio.ts), so the
+ * upload only has to fit here, not in Whisper's cap.
+ */
+const MAX_BODY_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024;
 
 const ROUTES: Record<string, Handler> = {
   '/analyze/image': analyzeImage,
@@ -73,7 +79,7 @@ function send(
 }
 
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  const path = (req.url ?? '').split('?')[0];
+  const [path, rawQuery] = (req.url ?? '').split('?');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204, CORS);
@@ -136,6 +142,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     const result = await route({
       raw,
       contentType: req.headers['content-type'] ?? 'application/octet-stream',
+      query: Object.fromEntries(new URLSearchParams(rawQuery ?? '')),
     });
     console.log(
       `${req.method} ${path} -> ${result.statusCode} ` +

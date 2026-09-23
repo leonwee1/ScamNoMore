@@ -5,6 +5,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, ChipSelect, Muted, SubHeading } from '../components/ui';
 import { scamTypes } from '../data/scamStore';
 import { useI18n } from '../i18n';
+import { useDomain } from '../i18n/useDomain';
 import { colors, font, radius, spacing } from '../theme';
 
 interface Msg {
@@ -13,27 +14,24 @@ interface Msg {
   self?: boolean;
 }
 
-/** Seed messages per room so a joined chat feels alive (wireframe example). */
-const SEED_MESSAGES: Record<string, Msg[]> = {
+/**
+ * Seed messages per room so a joined chat feels alive (wireframe example).
+ *
+ * Keyed by the CANONICAL English scam type, matching the dataset. The values are
+ * translation keys rather than literal text, so the sample conversation appears
+ * in the selected language.
+ */
+const SEED_KEYS: Record<string, string[]> = {
   'E-commerce Scam': [
-    { who: 'A', text: 'I saw this video on YouTube about a powerful veggie cleaner selling at 60% discount. Does anyone know if it\u2019s real?' },
-    { who: 'B', text: 'I have seen this too. Apparently, it\u2019s a scam…' },
-    { who: 'C', text: 'Seller asked me to PayNow first and then blocked me. Don\u2019t pay before meetup.' },
+    'community.seed.ecom.a',
+    'community.seed.ecom.b',
+    'community.seed.ecom.c',
   ],
-  'Phishing Scam': [
-    { who: 'A', text: 'Got an SMS saying my bank account is locked with a link. Looks legit?' },
-    { who: 'B', text: 'Banks never send links to unlock accounts. Delete it and call the bank directly.' },
-  ],
-  'Job Scam': [
-    { who: 'A', text: 'A Telegram recruiter offered $80/task, just need to pay a small deposit first.' },
-    { who: 'B', text: 'Classic job scam. Real jobs never ask you to pay upfront.' },
-  ],
+  'Phishing Scam': ['community.seed.phish.a', 'community.seed.phish.b'],
+  'Job Scam': ['community.seed.job.a', 'community.seed.job.b'],
 };
 
-const genericSeed = (room: string): Msg[] => [
-  { who: 'A', text: `Anyone experienced a ${room.toLowerCase()} recently? Sharing to warn others.` },
-  { who: 'B', text: 'Stay alert and verify everything. Report to the police if you lost money.' },
-];
+const SPEAKERS = ['A', 'B', 'C'];
 
 /**
  * Community screen (wireframe): pick a chat room by Scam Type, enter the room,
@@ -41,6 +39,7 @@ const genericSeed = (room: string): Msg[] => [
  */
 export const CommunityScreen: React.FC = () => {
   const { t } = useI18n();
+  const domain = useDomain();
   const allTypes = useMemo(() => scamTypes(), []);
   const [room, setRoom] = useState<string | undefined>();
   const [joined, setJoined] = useState(false);
@@ -49,7 +48,18 @@ export const CommunityScreen: React.FC = () => {
 
   const enter = () => {
     if (!room) return;
-    setMessages(SEED_MESSAGES[room] ?? genericSeed(room));
+    const keys = SEED_KEYS[room];
+    const seeded: Msg[] = keys
+      ? keys.map((key, i) => ({ who: SPEAKERS[i] ?? 'A', text: t(key) }))
+      : [
+          // The generic opener names the scam type, so translate the type too.
+          {
+            who: 'A',
+            text: t('community.seed.generic.a', { type: domain.scamType(room) }),
+          },
+          { who: 'B', text: t('community.seed.generic.b') },
+        ];
+    setMessages(seeded);
     setJoined(true);
   };
 
@@ -61,7 +71,7 @@ export const CommunityScreen: React.FC = () => {
 
   const send = () => {
     if (!draft.trim()) return;
-    setMessages((m) => [...m, { who: 'You', text: draft.trim(), self: true }]);
+    setMessages((m) => [...m, { who: t('community.you'), text: draft.trim(), self: true }]);
     setDraft('');
   };
 
@@ -72,7 +82,7 @@ export const CommunityScreen: React.FC = () => {
           <ScreenHeader title={t('tab.community')} />
           <Card>
             <SubHeading>
-              {t('community.youAreIn')}: {room} chat room
+              {t('community.youAreIn')}: {domain.scamType(room)} {t('community.roomSuffix')}
             </SubHeading>
             <Muted>{t('community.liveSession')}</Muted>
           </Card>
@@ -105,7 +115,12 @@ export const CommunityScreen: React.FC = () => {
         <Card>
           <SubHeading>{t('community.pickRoom')}</SubHeading>
           <Muted>{t('report.scamType')}</Muted>
-          <ChipSelect options={allTypes} value={room} onChange={setRoom} />
+          <ChipSelect
+            options={allTypes}
+            value={room}
+            onChange={setRoom}
+            labelOf={domain.scamType}
+          />
         </Card>
         <Button title={t('community.enter')} onPress={enter} disabled={!room} />
       </ScrollView>
@@ -127,10 +142,10 @@ const ChatInput: React.FC<{ value: string; onChange: (v: string) => void; onSend
         style={styles.input}
         value={value}
         onChangeText={onChange}
-        placeholder="Type a message…"
+        placeholder={t('community.typeMessage')}
         placeholderTextColor={colors.textMuted}
       />
-      <Button title="Send" onPress={onSend} disabled={!value.trim()} />
+      <Button title={t('community.send')} onPress={onSend} disabled={!value.trim()} />
     </View>
   );
 };

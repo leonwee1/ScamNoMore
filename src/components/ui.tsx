@@ -98,25 +98,37 @@ export const StatBar: React.FC<{ label: string; value: number; max: number }> = 
   </View>
 );
 
-/** Lightweight dropdown replacement (no native modules) built from chips. */
+/**
+ * Lightweight dropdown replacement (no native modules) built from chips.
+ *
+ * `options` and the value handed to `onChange` are always the CANONICAL English
+ * values, because that is what the dataset, the search filters and
+ * `scamStore.addReport` store and match on. `labelOf` translates a value purely
+ * for display, so switching language changes what the user reads without
+ * changing what gets recorded.
+ */
 export const ChipSelect: React.FC<{
   options: string[];
   value?: string;
   onChange: (v: string) => void;
   placeholder?: string;
-}> = ({ options, value, onChange }) => (
+  /** Display transform. Defaults to showing the value itself. */
+  labelOf?: (value: string) => string;
+}> = ({ options, value, onChange, labelOf }) => (
   <View style={styles.chipWrap}>
     {options.map((opt) => {
       const active = opt === value;
+      const label = labelOf ? labelOf(opt) : opt;
       return (
         <Pressable
           key={opt}
           onPress={() => onChange(opt)}
           style={[styles.chip, active && styles.chipActive]}
           accessibilityRole="button"
+          accessibilityLabel={label}
           accessibilityState={{ selected: active }}
         >
-          <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt}</Text>
+          <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
         </Pressable>
       );
     })}

@@ -1,8 +1,12 @@
 import OpenAI from 'openai';
+import { WHISPER_MAX_BYTES } from './audio';
 import { parseAnalysisJson } from './parse';
 import {
   ANALYSIS_SYSTEM_PROMPT,
   buildAnalysisUserPrompt,
+  buildChatLanguageContext,
+  buildDateContext,
+  buildLanguageContext,
   CHAT_SYSTEM_PROMPT,
 } from './prompts';
 import { AnalysisResult, AnalysisSignals, riskFromProbability } from './types';
@@ -17,8 +21,35 @@ import { AnalysisResult, AnalysisSignals, riskFromProbability } from './types';
  *   Chat   -> gpt-4o conversation
  */
 
-/** Whisper rejects files larger than 25 MB. */
-export const MAX_MEDIA_BYTES = 25 * 1024 * 1024;
+/**
+ * Whisper rejects files larger than 25 MB.
+ *
+ * Callers should hand us audio that has already been through
+ * `extractAudioForTranscription`, which compresses well under this. The check in
+ * `transcribeMedia` is a last-resort guard, not the primary limit — see
+ * MAX_UPLOAD_BYTES in lib/audio.ts for what the API actually accepts.
+ */
+export const MAX_MEDIA_BYTES = WHISPER_MAX_BYTES;
+
+/**
+ * The four languages the app UI offers. These are already ISO-639-1 codes,
+ * which is exactly what Whisper's `language` parameter expects.
+ */
+export const SUPPORTED_LANGUAGES = ['en', 'zh', 'ms', 'ta'] as const;
+export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];
+
+/**
+ * Validate a language code before handing it to Whisper. Anything unexpected
+ * becomes `undefined` so we fall back to auto-detect rather than sending junk
+ * that the API would reject.
+ */
+export function normalizeLanguage(value?: string): SupportedLanguage | undefined {
+  // Accept regional tags like "en-SG" / "zh-Hans" by keeping the base code.
+  const code = value?.trim().toLowerCase().split(/[-_]/)[0] ?? '';
+  return (SUPPORTED_LANGUAGES as readonly string[]).includes(code)
+    ? (code as SupportedLanguage)
+    : undefined;
+}
 
 const CHAT_MODEL = process.env.OPENAI_CHAT_MODEL ?? 'gpt-4o';
 const TRANSCRIBE_MODEL = process.env.OPENAI_TRANSCRIBE_MODEL ?? 'whisper-1';
@@ -43,6 +74,47 @@ export function resetClient(): void {
   cached = null;
 }
 
+/**
+ * Wrap optional prompt text as a system message, or nothing when it is empty.
+ * The language directive is empty for English, and sending a blank system
+ * message would only waste tokens.
+ */
+function systemIf(content: string): Array<{ role: 'system'; content: string }> {
+  return content ? [{ role: 'system', content }] : [];
+}
+
+/**
+ * Explain why a completion came back without usable content.
+ *
+ * `content` can be null for several quite different reasons, and the old
+ * "returned an empty response" message hid all of them. The OpenAI response
+ * carries the actual cause in `finish_reason` and `refusal`, so report it.
+ */
+function emptyCompletionError(res: OpenAI.Chat.Completions.ChatCompletion, what: string): Error {
+  const choice = res.choices[0];
+  const reason = choice?.finish_reason;
+  const refusal = (choice?.message as { refusal?: string } | undefined)?.refusal;
+
+  if (refusal) {
+    return new Error(`The model declined to analyse this ${what}: ${refusal}`);
+  }
+  if (reason === 'content_filter') {
+    return new Error(
+      `This ${what} was blocked by OpenAI's content filter, so it could not be analysed. ` +
+        'Try a cropped screenshot showing just the message text.'
+    );
+  }
+  if (reason === 'length') {
+    return new Error(
+      `The analysis was cut off before it could be completed (token limit). ` +
+        'Please try again.'
+    );
+  }
+  return new Error(
+    `OpenAI returned no content for the ${what} (finish_reason: ${reason ?? 'unknown'}).`
+  );
+}
+
 function toResult(raw: string, signals: AnalysisSignals): AnalysisResult {
   const parsed = parseAnalysisJson(raw);
   return {
@@ -63,7 +135,9 @@ function toResult(raw: string, signals: AnalysisSignals): AnalysisResult {
  */
 export async function analyzeImage(
   imageBytes: Buffer,
-  mimeType: string
+  mimeType: string,
+  today?: string,
+  language?: string
 ): Promise<AnalysisResult> {
   const signals: AnalysisSignals = { source: 'image' };
   const dataUrl = `data:${mimeType};base64,${imageBytes.toString('base64')}`;
@@ -75,6 +149,8 @@ export async function analyzeImage(
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
+      { role: 'system', content: buildDateContext(today) },
+      ...systemIf(buildLanguageContext(language)),
       {
         role: 'user',
         content: [
@@ -86,7 +162,23 @@ export async function analyzeImage(
   });
 
   const raw = res.choices[0]?.message?.content;
-  if (!raw) throw new Error('OpenAI returned an empty response for the image');
+  if (!raw) {
+    console.error(
+      'Empty image completion:',
+      JSON.stringify(
+        {
+          finish_reason: res.choices[0]?.finish_reason,
+          refusal: (res.choices[0]?.message as { refusal?: string } | undefined)?.refusal,
+          usage: res.usage,
+          mimeType,
+          bytes: imageBytes.byteLength,
+        },
+        null,
+        2
+      )
+    );
+    throw emptyCompletionError(res, 'image');
+  }
   return toResult(raw, signals);
 }
 
@@ -98,31 +190,123 @@ export async function analyzeImage(
 export async function transcribeMedia(
   bytes: Buffer,
   filename: string,
-  mimeType: string
+  mimeType: string,
+  language?: string
 ): Promise<string> {
   if (bytes.byteLength > MAX_MEDIA_BYTES) {
+    // Reached only if compression could not get a very long recording under the
+    // cap (roughly 100+ minutes of speech).
     throw new Error(
-      `File is ${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB. The limit is 25 MB — ` +
-        'please trim the recording or use a shorter clip.'
+      `The compressed audio is still ${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB, ` +
+        'above the 25 MB transcription limit. Please use a shorter recording.'
     );
   }
 
   // Node 18+ provides File globally; the SDK accepts it directly.
   const file = new File([new Uint8Array(bytes)], filename, { type: mimeType });
+  const lang = normalizeLanguage(language);
 
-  const res = await getClient().audio.transcriptions.create({
+  const res = (await getClient().audio.transcriptions.create({
     file,
     model: TRANSCRIBE_MODEL,
-    // Let Whisper auto-detect language (users may speak EN/ZH/MS/TA).
-  });
+    // Pin the decoder to the language the user picked in the app. Whisper's
+    // auto-detect judges from roughly the first 30 seconds only, and it
+    // regularly mistakes short or accented English for Malay/Indonesian —
+    // which then comes back as Malay text. Omitted (auto-detect) only when we
+    // were given no usable code.
+    ...(lang ? { language: lang } : {}),
+    // Greedy decoding. Whisper is prone to inventing plausible-sounding filler
+    // over silence or background noise, and a non-zero temperature makes that
+    // worse.
+    temperature: 0,
+    // verbose_json adds per-segment confidence, which is the only way to tell a
+    // real transcript from an invented one after the fact.
+    response_format: 'verbose_json',
+  })) as TranscriptionVerbose;
 
-  return res.text?.trim() ?? '';
+  const text = res.text?.trim() ?? '';
+  const verdict = detectHallucination(text, res.segments ?? []);
+  if (verdict.hallucinated) {
+    console.warn(`Discarded hallucinated transcript (${verdict.reason}): ${JSON.stringify(text)}`);
+    return '';
+  }
+  return text;
+}
+
+/** Subset of Whisper's verbose_json response that we rely on. */
+interface TranscriptionVerbose {
+  text?: string;
+  language?: string;
+  segments?: TranscriptionSegment[];
+}
+
+export interface TranscriptionSegment {
+  no_speech_prob: number;
+  avg_logprob: number;
+  text: string;
+}
+
+/**
+ * Decide whether a transcript is Whisper output or Whisper invention.
+ *
+ * Fed silence or music, Whisper does not return an empty string. It emits fluent
+ * stock phrases memorised from its training data — YouTube sign-offs
+ * ("please like and subscribe…"), travel narration ("the scenery here is very
+ * beautiful") — usually repeated, and it reports high confidence while doing it.
+ *
+ * Two independent signals, both requiring agreement before we discard anything,
+ * because throwing away a real transcript is worse than passing a bad one on to
+ * a user who can read and edit it:
+ *
+ *  1. Degenerate repetition — one short sentence filling the whole transcript.
+ *  2. Whisper's own `no_speech_prob`, which runs high on invented segments.
+ */
+export function detectHallucination(
+  text: string,
+  segments: TranscriptionSegment[]
+): { hallucinated: boolean; reason?: string } {
+  if (!text) return { hallucinated: false };
+
+  // Split on sentence enders in both Latin and CJK punctuation.
+  const sentences = text
+    .split(/[。．.!?！？\n]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const unique = new Set(sentences);
+
+  if (sentences.length >= 3 && unique.size === 1) {
+    return {
+      hallucinated: true,
+      reason: `same sentence repeated ${sentences.length}x`,
+    };
+  }
+  if (sentences.length >= 4 && unique.size <= sentences.length / 3) {
+    return {
+      hallucinated: true,
+      reason: `only ${unique.size} unique of ${sentences.length} sentences`,
+    };
+  }
+
+  // Whisper says there is probably no speech in every segment it produced.
+  if (segments.length > 0) {
+    const allNonSpeech = segments.every((s) => s.no_speech_prob >= 0.8);
+    if (allNonSpeech) {
+      return {
+        hallucinated: true,
+        reason: `all ${segments.length} segment(s) have no_speech_prob >= 0.8`,
+      };
+    }
+  }
+
+  return { hallucinated: false };
 }
 
 /** Analyze a transcript or user-supplied text with gpt-4o. */
 export async function analyzeTextEvidence(
   text: string,
-  source: 'voice' | 'video' | 'text'
+  source: 'voice' | 'video' | 'text',
+  today?: string,
+  language?: string
 ): Promise<AnalysisResult> {
   const signals: AnalysisSignals =
     source === 'text' ? { source: 'text', text } : { source, transcript: text };
@@ -134,12 +318,14 @@ export async function analyzeTextEvidence(
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
+      { role: 'system', content: buildDateContext(today) },
+      ...systemIf(buildLanguageContext(language)),
       { role: 'user', content: buildAnalysisUserPrompt(signals) },
     ],
   });
 
   const raw = res.choices[0]?.message?.content;
-  if (!raw) throw new Error('OpenAI returned an empty analysis response');
+  if (!raw) throw emptyCompletionError(res, source === 'text' ? 'text' : 'recording');
   return toResult(raw, signals);
 }
 
@@ -170,7 +356,12 @@ export interface ChatTurn {
 }
 
 /** Chatbot turn with conversation history. */
-export async function chat(message: string, history: ChatTurn[] = []): Promise<string> {
+export async function chat(
+  message: string,
+  history: ChatTurn[] = [],
+  today?: string,
+  language?: string
+): Promise<string> {
   // Keep the last 10 turns to bound cost and latency.
   const recent = history
     .filter((t) => t?.content?.trim())
@@ -188,7 +379,12 @@ export async function chat(message: string, history: ChatTurn[] = []): Promise<s
     model: CHAT_MODEL,
     temperature: 0.5,
     max_tokens: 500,
-    messages: [{ role: 'system', content: CHAT_SYSTEM_PROMPT }, ...messages],
+    messages: [
+      { role: 'system', content: CHAT_SYSTEM_PROMPT },
+      { role: 'system', content: buildDateContext(today) },
+      ...systemIf(buildChatLanguageContext(language)),
+      ...messages,
+    ],
   });
 
   const reply = res.choices[0]?.message?.content?.trim();

@@ -12,7 +12,7 @@ import { colors, spacing } from '../theme';
 
 /** Video flow: upload video -> Whisper (audio track) -> gpt-4o -> scam result. */
 export const VideoAnalysisScreen: React.FC = () => {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [uri, setUri] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -23,7 +23,7 @@ export const VideoAnalysisScreen: React.FC = () => {
     setResult(null);
     const picked = await pickVideo();
     if (!picked) {
-      setError('No video selected or permission denied.');
+      setError(t('analyze.noVideo'));
       return;
     }
     setUri(picked);
@@ -34,19 +34,14 @@ export const VideoAnalysisScreen: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      setResult(await api.analyzeVideo(uri));
+      // lang drives BOTH Whisper's decoding of the audio track and the language
+      // the model writes its reasons/advice in.
+      setResult(await api.analyzeVideo(uri, lang));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Analysis failed. Please try again.');
+      setError(e instanceof Error ? e.message : t('analyze.failed'));
     } finally {
       setLoading(false);
     }
-  };
-
-  const reset = () => {
-    setUri(null);
-    setResult(null);
-    setError(null);
-    choose();
   };
 
   return (
@@ -56,7 +51,7 @@ export const VideoAnalysisScreen: React.FC = () => {
         <Card>
           <SubHeading>{t('home.uploadVideo')}</SubHeading>
           <Muted>{t('analyze.maxDuration')}</Muted>
-          {uri ? <Body>Selected: {uri.split('/').pop()}</Body> : null}
+          {uri ? <Body>{t('analyze.selected', { name: uri.split('/').pop() ?? '' })}</Body> : null}
           <Button title={t('home.uploadVideo')} variant="secondary" onPress={choose} />
           <Button
             title={t('analyze.startAnalyzing')}
@@ -68,9 +63,6 @@ export const VideoAnalysisScreen: React.FC = () => {
 
         {error ? <Muted style={{ color: colors.high }}>{error}</Muted> : null}
         {result ? <AnalysisResultView result={result} /> : null}
-        {result ? (
-          <Button title={`${t('analyze.checkAnother')} 🎬`} variant="secondary" onPress={reset} />
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

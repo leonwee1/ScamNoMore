@@ -36,6 +36,16 @@ export interface AnalysisResult {
   signals?: AnalysisSignals;
 }
 
+/**
+ * Translation key for the short verdict shown under the gauge.
+ *
+ * Returns a key rather than a finished string so the label is localized at
+ * render time by the active language, instead of being baked in as English.
+ */
+export function riskLabelKey(p: number): string {
+  return `risk.${riskFromProbability(p)}`;
+}
+
 /** Map a probability to a risk band. Must stay in sync with the backend. */
 export function riskFromProbability(p: number): RiskLevel {
   if (p >= 0.85) return 'critical';

@@ -1,7 +1,8 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { riskFromProbability } from '../services/analysis';
-import { BackendNotConfiguredError, contentTypeFor, probabilityLabel } from '../services/api';
+import { riskFromProbability, riskLabelKey } from '../services/analysis';
+import { BackendNotConfiguredError, contentTypeFor } from '../services/api';
+import { _dicts } from '../i18n';
 
 describe('riskFromProbability', () => {
   it('maps probabilities to levels', () => {
@@ -20,13 +21,23 @@ describe('riskFromProbability', () => {
   });
 });
 
-describe('probabilityLabel', () => {
-  it('produces human labels across the range', () => {
-    expect(probabilityLabel(0.05)).toBe('Very low risk');
-    expect(probabilityLabel(0.3)).toBe('Low risk');
-    expect(probabilityLabel(0.5)).toBe('Possible scam');
-    expect(probabilityLabel(0.7)).toBe('Likely scam');
-    expect(probabilityLabel(0.95)).toBe('Almost certainly a scam');
+describe('riskLabelKey', () => {
+  it('produces a translation key across the range', () => {
+    expect(riskLabelKey(0.05)).toBe('risk.safe');
+    expect(riskLabelKey(0.3)).toBe('risk.low');
+    expect(riskLabelKey(0.5)).toBe('risk.medium');
+    expect(riskLabelKey(0.7)).toBe('risk.high');
+    expect(riskLabelKey(0.95)).toBe('risk.critical');
+  });
+
+  it('resolves in every supported language', () => {
+    // A missing entry would render the raw key ("risk.high") to the user.
+    for (const p of [0.05, 0.3, 0.5, 0.7, 0.95]) {
+      const key = riskLabelKey(p) as keyof (typeof _dicts)['en'];
+      for (const lang of ['en', 'zh', 'ms', 'ta'] as const) {
+        expect(_dicts[lang][key]).toBeTruthy();
+      }
+    }
   });
 });
 

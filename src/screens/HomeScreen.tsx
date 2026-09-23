@@ -24,11 +24,11 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <Card>
           <Muted>{t('home.text.group')}</Muted>
           <Button
-            title={`1. ${t('home.takePicture')}`}
+            title={t('home.takePicture')}
             onPress={() => navigation.navigate('ImageAnalysis', { mode: 'camera' })}
           />
           <Button
-            title={`2. ${t('home.uploadImage')}`}
+            title={t('home.uploadImage')}
             variant="secondary"
             onPress={() => navigation.navigate('ImageAnalysis', { mode: 'library' })}
           />
@@ -37,11 +37,11 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <Card>
           <Muted>{t('home.voice.group')}</Muted>
           <Button
-            title={`3. ${t('home.uploadAudio')}`}
+            title={t('home.uploadAudio')}
             onPress={() => navigation.navigate('VoiceAnalysis', { mode: 'upload' })}
           />
           <Button
-            title={`4. ${t('home.sayWhat')}`}
+            title={t('home.sayWhat')}
             variant="secondary"
             onPress={() => navigation.navigate('VoiceAnalysis', { mode: 'record' })}
           />
@@ -50,16 +50,13 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <Card>
           <Muted>{t('home.video.group')}</Muted>
           <Button
-            title={`5. ${t('home.uploadVideo')}`}
+            title={t('home.uploadVideo')}
             onPress={() => navigation.navigate('VideoAnalysis')}
           />
         </Card>
 
         <View style={styles.tipBox}>
-          <Body>
-            Tip: You can analyze a suspicious message, phone call, or video. Nothing you
-            upload is shared publicly — results are for your awareness.
-          </Body>
+          <Body>{t('home.tip')}</Body>
         </View>
       </ScrollView>
     </SafeAreaView>

@@ -60,6 +60,110 @@ Style rules:
 - Never ask for or repeat sensitive data (OTPs, passwords, full NRIC, card numbers).
 - You are not a lawyer or the police; do not promise recovery of funds.`;
 
+/** The four languages the app offers, as ISO-639-1 codes. */
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English',
+  zh: 'Chinese (Simplified, as written in Singapore)',
+  ms: 'Bahasa Melayu',
+  ta: 'Tamil',
+};
+
+/** Normalise a client-supplied language code, tolerating tags like "en-SG". */
+export function normalizeLanguageCode(value?: string): string | undefined {
+  const code = value?.trim().toLowerCase().split(/[-_]/)[0] ?? '';
+  return code in LANGUAGE_NAMES ? code : undefined;
+}
+
+/**
+ * Instruct the model to write for the user in their selected language.
+ *
+ * Two things must NOT be translated:
+ *  - `scamType`, which is a fixed enum the app matches against its dataset and
+ *    translates itself. If the model returned a translated category the lookup
+ *    would miss and the label would fall back to raw model text.
+ *  - Quoted fragments of the evidence, which are quoted precisely so the user
+ *    can recognise them in the original message.
+ *
+ * Returns an empty string for English, so English requests keep the exact
+ * prompt they had before.
+ */
+export function buildLanguageContext(language?: string): string {
+  const code = normalizeLanguageCode(language);
+  if (!code || code === 'en') return '';
+
+  return `OUTPUT LANGUAGE: ${LANGUAGE_NAMES[code]}.
+
+- Write every human-readable string you produce in ${LANGUAGE_NAMES[code]}. That means
+  the "reasons" entries and the "advice" paragraph.
+- EXCEPTION 1: the "scamType" field must stay EXACTLY as one of the English
+  category names listed above. Do not translate it. It is an identifier, not
+  display text.
+- EXCEPTION 2: when you quote a fragment of the evidence, keep the quote in its
+  original language so the user can recognise it, then explain it in
+  ${LANGUAGE_NAMES[code]}.
+- Keep brand, bank and agency names in their usual form (DBS, OCBC, UOB, PayNow,
+  Singpass, IRAS, Carousell, WhatsApp) rather than transliterating them.
+- Use plain, everyday ${LANGUAGE_NAMES[code]} suitable for an elderly reader.`;
+}
+
+/**
+ * Language directive for the chatbot. The chat reply is free text with no JSON
+ * schema, so there is no enum field to protect here.
+ */
+export function buildChatLanguageContext(language?: string): string {
+  const code = normalizeLanguageCode(language);
+  if (!code || code === 'en') return '';
+
+  return `OUTPUT LANGUAGE: ${LANGUAGE_NAMES[code]}.
+
+- Reply in ${LANGUAGE_NAMES[code]}, even when the user writes to you in another
+  language, because it is the language they chose in the app.
+- Keep brand, bank and agency names in their usual form (DBS, OCBC, UOB, PayNow,
+  Singpass, IRAS, Carousell, WhatsApp) rather than transliterating them.
+- When you quote a suspicious message back to the user, keep the quote in its
+  original language and explain it in ${LANGUAGE_NAMES[code]}.
+- Use plain, everyday ${LANGUAGE_NAMES[code]} suitable for an elderly reader.`;
+}
+
+/**
+ * Validate an ISO calendar date (YYYY-MM-DD) supplied by the client.
+ *
+ * The value comes from the user's device, so it is untrusted: reject anything
+ * malformed or not a real calendar date (e.g. 2026-02-31) rather than feeding
+ * nonsense into a prompt.
+ */
+export function normalizeToday(value?: string): string | undefined {
+  const text = value?.trim();
+  if (!text || !/^\d{4}-\d{2}-\d{2}$/.test(text)) return undefined;
+
+  // Round-trip through Date to reject impossible days like 2026-02-31, which
+  // the regex above happily accepts.
+  const parsed = new Date(`${text}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed.toISOString().slice(0, 10) === text ? text : undefined;
+}
+
+/**
+ * Tell the model what day it is.
+ *
+ * Language models have no clock. Without this the model reasons from its
+ * training cutoff, so it calls a date like 2026-08-31 "a future date" even
+ * though it is in the past — which produced visibly wrong scam advice. The app
+ * sends the DEVICE date so "today" always matches what the user sees on their
+ * own phone; if it is missing or malformed we fall back to the server clock.
+ */
+export function buildDateContext(today?: string): string {
+  const date = normalizeToday(today) ?? new Date().toISOString().slice(0, 10);
+  return `CURRENT DATE: ${date} (ISO format). Treat this as today's date.
+
+- Any date earlier than ${date} is in the PAST.
+- Any date later than ${date} is in the FUTURE.
+- Do NOT rely on your training cutoff to judge whether a date has passed, and do
+  not describe a past date as upcoming or as "in the future".
+- When the user refers to "today", "yesterday" or "last month", resolve it
+  against ${date}.`;
+}
+
 /** Build the user-turn text describing the evidence for the model. */
 export function buildAnalysisUserPrompt(signals: AnalysisSignals): string {
   const parts: string[] = [];

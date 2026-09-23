@@ -42,12 +42,19 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setBusy(true);
     setError(null);
     try {
-      // Pass the UI language so Transcribe picks the right model.
-      // Whisper auto-detects the spoken language (EN/ZH/MS/TA).
-      setTranscript(await api.transcribeAudio(uri));
+      // Pass the selected UI language so Whisper decodes in that language.
+      // Left to auto-detect it judges from roughly the first 30 seconds and
+      // returns Malay text for short or accented English.
+      const { text, noSpeechDetected } = await api.transcribeAudio(uri, lang);
+      setTranscript(text);
+      if (noSpeechDetected) {
+        // Say so plainly. Whisper invents fluent text for silent audio, so an
+        // empty transcript here is the honest result, not a failure to explain.
+        setError(`${t('analyze.noSpeech.reason')} ${t('analyze.noSpeech.adviceVoice')}`);
+      }
     } catch (e) {
       setError(
-        `${e instanceof Error ? e.message : 'Transcription failed.'} You can also type what happened below.`
+        `${e instanceof Error ? e.message : t('analyze.transcribeFailed')} ${t('analyze.orTypeBelow')}`
       );
     } finally {
       setBusy(false);
@@ -64,14 +71,14 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
       }
       const perm = await AudioModule.requestRecordingPermissionsAsync();
       if (!perm.granted) {
-        setError('Microphone permission denied.');
+        setError(t('analyze.micDenied'));
         return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
     } catch {
-      setError('Could not access the microphone.');
+      setError(t('analyze.micError'));
     }
   };
 
@@ -79,7 +86,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setError(null);
     const uri = await pickAudio();
     if (!uri) {
-      setError('No file selected or permission denied.');
+      setError(t('analyze.noAudio'));
       return;
     }
     await transcribe(uri);
@@ -90,18 +97,13 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     setLoading(true);
     setError(null);
     try {
-      setResult(await api.analyzeTranscript(transcript));
+      // lang tells the model which language to write its reasons/advice in.
+      setResult(await api.analyzeTranscript(transcript, lang));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Analysis failed. Please try again.');
+      setError(e instanceof Error ? e.message : t('analyze.failed'));
     } finally {
       setLoading(false);
     }
-  };
-
-  const reset = () => {
-    setTranscript('');
-    setResult(null);
-    setError(null);
   };
 
   return (
@@ -118,7 +120,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
             <Button
               title={
                 recorderState.isRecording
-                  ? '■ Stop recording'
+                  ? `■ ${t('analyze.stopRecording')}`
                   : `● ${t('analyze.startRecording')}`
               }
               onPress={toggleRecording}
@@ -135,7 +137,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
             multiline
             value={transcript}
             onChangeText={setTranscript}
-            placeholder={busy ? 'Transcribing…' : '…'}
+            placeholder={busy ? t('analyze.transcribing') : '…'}
             placeholderTextColor={colors.textMuted}
             editable={!busy}
           />
@@ -149,9 +151,6 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
 
         {error ? <Muted style={{ color: colors.high }}>{error}</Muted> : null}
         {result ? <AnalysisResultView result={result} /> : null}
-        {result ? (
-          <Button title={`${t('analyze.checkAnother')} 🎙️`} variant="secondary" onPress={reset} />
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

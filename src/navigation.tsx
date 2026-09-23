@@ -64,6 +64,10 @@ export const RootNavigator: React.FC = () => {
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.text,
         contentStyle: { backgroundColor: colors.bg },
+        // Show only the chevron on the back button. Otherwise iOS labels it with
+        // the previous route's name — which surfaced the internal route id
+        // "Tabs" as untranslated English next to a Chinese title.
+        headerBackTitleVisible: false,
       }}
     >
       <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
