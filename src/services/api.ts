@@ -189,6 +189,25 @@ function stampLanguage(result: AnalysisResult, language?: string): AnalysisResul
   return language ? { ...result, language } : result;
 }
 
+/** Shared transcription call for both the audio and video flows. */
+async function transcribe(
+  uri: string,
+  kind: 'audio' | 'video',
+  language?: string
+): Promise<{ text: string; noSpeechDetected: boolean }> {
+  const res = await postMedia<{ text: string; noSpeechDetected?: boolean }>(
+    `/transcribe${mediaQuery({ language })}`,
+    uri,
+    kind
+  );
+  return {
+    text: res.text ?? '',
+    // Treat an empty transcript as "no speech" even if the flag is absent, so an
+    // older backend still produces the right message rather than a blank box.
+    noSpeechDetected: res.noSpeechDetected === true || !res.text?.trim(),
+  };
+}
+
 export const api = {
   /**
    * gpt-4o vision: reads the text in the image and judges visual scam cues.
@@ -230,25 +249,40 @@ export const api = {
    * produces for silence, so the caller must tell the user instead of showing an
    * empty box.
    */
-  async transcribeAudio(
+  transcribeAudio(
     audioUri: string,
     language?: string
   ): Promise<{ text: string; noSpeechDetected: boolean }> {
-    const res = await postMedia<{ text: string; noSpeechDetected?: boolean }>(
-      `/transcribe${mediaQuery({ language })}`,
-      audioUri,
-      'audio'
-    );
-    return {
-      text: res.text ?? '',
-      noSpeechDetected: res.noSpeechDetected === true || !res.text?.trim(),
-    };
+    return transcribe(audioUri, 'audio', language);
   },
 
-  /** gpt-4o analysis of the (user-editable) transcript. */
-  async analyzeTranscript(text: string, language?: string): Promise<AnalysisResult> {
+  /**
+   * Whisper on a video's audio track -> text.
+   *
+   * Same endpoint as audio: the backend strips the audio out with ffmpeg before
+   * transcribing, so the container it arrives in makes no difference.
+   */
+  transcribeVideo(
+    videoUri: string,
+    language?: string
+  ): Promise<{ text: string; noSpeechDetected: boolean }> {
+    return transcribe(videoUri, 'video', language);
+  },
+
+  /**
+   * gpt-4o analysis of the (user-editable) transcript.
+   *
+   * `source` keeps the evidence type accurate when re-analysing an edited
+   * transcript: the prompt tells the model whether the words came from a voice
+   * recording or a video's audio track.
+   */
+  async analyzeTranscript(
+    text: string,
+    language?: string,
+    source: 'voice' | 'video' = 'voice'
+  ): Promise<AnalysisResult> {
     return stampLanguage(
-      await postJson<AnalysisResult>('/analyze/text', { text, source: 'voice', language }),
+      await postJson<AnalysisResult>('/analyze/text', { text, source, language }),
       language
     );
   },

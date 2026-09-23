@@ -13,7 +13,11 @@ import { colors, font, radius, spacing } from '../theme';
  * native navigation header. Those screens were rendering the same text twice,
  * once in the stack header and again here.
  */
-export const ScreenHeader: React.FC<{ title?: string }> = ({ title }) => {
+export const ScreenHeader: React.FC<{
+  title?: string;
+  /** Rendered immediately before the title, e.g. the app's logo on Home. */
+  titleIcon?: React.ReactNode;
+}> = ({ title, titleIcon }) => {
   const { lang, setLang, t } = useI18n();
   const navigation = useNavigation<any>();
 
@@ -46,9 +50,12 @@ export const ScreenHeader: React.FC<{ title?: string }> = ({ title }) => {
       </View>
 
       {title ? (
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
+        <View style={styles.titleRow}>
+          {titleIcon}
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
+          </Text>
+        </View>
       ) : null}
     </View>
   );
@@ -64,7 +71,10 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  title: { color: colors.text, fontSize: font.h1, fontWeight: '800' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // flexShrink lets a long translated title wrap/ellipsise instead of pushing
+  // the logo off screen.
+  title: { color: colors.text, fontSize: font.h1, fontWeight: '800', flexShrink: 1 },
   chatBtn: {
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.lg,

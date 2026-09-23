@@ -5,7 +5,7 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
 } from 'expo-audio';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnalysisResultView } from '../components/AnalysisResultView';
@@ -91,6 +91,14 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     }
     await transcribe(uri);
   };
+
+  // In upload mode, open the file picker straight away — the user already chose
+  // "Upload audio file" on Home, so tapping the same label again is a wasted
+  // step. Recording is left deliberate: it should never start on its own.
+  useEffect(() => {
+    if (mode === 'upload') upload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const analyze = async () => {
     if (!transcript.trim()) return;

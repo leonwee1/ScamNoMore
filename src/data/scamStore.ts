@@ -25,7 +25,20 @@ export const scamStore = {
     return records.length;
   },
 
-  /** Append a new verified incident report to the shared dataset. */
+  /**
+   * Append a user's incident report to the shared dataset.
+   *
+   * The row lands in the same table as the 5000 seed records, but with
+   * `verified: false`. A public report is an ALLEGATION until the police have
+   * investigated it; only then would someone flip the Verified column to Yes.
+   * The seed rows are all Yes precisely because they represent already-verified
+   * historical cases.
+   *
+   * Consequence worth knowing: because the Search screen defaults to "Show
+   * verified cases only", a fresh report will not appear in the default results.
+   * That is correct — it keeps unconfirmed claims out of the statistics people
+   * rely on — and turning the switch off reveals it.
+   */
   addReport(input: {
     dateReported: string;
     scamType: string;
@@ -41,7 +54,8 @@ export const scamStore = {
       town: input.town,
       specificPlace: input.town,
       source: 'user-report',
-      verified: true,
+      // Pending police investigation. Never true at creation time.
+      verified: false,
       year: parseInt(input.dateReported.slice(0, 4), 10),
     };
     records = [rec, ...records];

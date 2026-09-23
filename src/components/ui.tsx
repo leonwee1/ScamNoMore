@@ -98,42 +98,9 @@ export const StatBar: React.FC<{ label: string; value: number; max: number }> = 
   </View>
 );
 
-/**
- * Lightweight dropdown replacement (no native modules) built from chips.
- *
- * `options` and the value handed to `onChange` are always the CANONICAL English
- * values, because that is what the dataset, the search filters and
- * `scamStore.addReport` store and match on. `labelOf` translates a value purely
- * for display, so switching language changes what the user reads without
- * changing what gets recorded.
- */
-export const ChipSelect: React.FC<{
-  options: string[];
-  value?: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  /** Display transform. Defaults to showing the value itself. */
-  labelOf?: (value: string) => string;
-}> = ({ options, value, onChange, labelOf }) => (
-  <View style={styles.chipWrap}>
-    {options.map((opt) => {
-      const active = opt === value;
-      const label = labelOf ? labelOf(opt) : opt;
-      return (
-        <Pressable
-          key={opt}
-          onPress={() => onChange(opt)}
-          style={[styles.chip, active && styles.chipActive]}
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          accessibilityState={{ selected: active }}
-        >
-          <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-        </Pressable>
-      );
-    })}
-  </View>
-);
+// ChipSelect was removed once every caller moved to a control that scales to
+// long option lists: Dropdown (Search, Report) and WheelPicker (Community). A
+// grid of 40 town chips filled most of a phone screen.
 
 const styles = StyleSheet.create({
   card: {
@@ -166,16 +133,4 @@ const styles = StyleSheet.create({
   statTrack: { flex: 1, height: 8, backgroundColor: colors.surfaceAlt, borderRadius: 4, overflow: 'hidden' },
   statFill: { height: 8, backgroundColor: colors.primary, borderRadius: 4 },
   statValue: { color: colors.textMuted, fontSize: font.small, width: 44, textAlign: 'right' },
-  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: colors.surfaceAlt,
-  },
-  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { color: colors.textMuted, fontSize: font.small, fontWeight: '600' },
-  chipTextActive: { color: colors.white },
 });

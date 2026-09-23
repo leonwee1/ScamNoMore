@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useI18n } from '../i18n';
 import { useDomain } from '../i18n/useDomain';
 import { AnalysisResult, riskLabelKey } from '../services/analysis';
-import { spacing } from '../theme';
+import { colors, spacing } from '../theme';
 import { RiskGauge } from './RiskGauge';
+import { SpeakButton } from './SpeakButton';
 import { Body, Card, Muted, SubHeading } from './ui';
 import { useTranslatedAnalysis } from './useTranslatedAnalysis';
 
@@ -26,6 +27,7 @@ import { useTranslatedAnalysis } from './useTranslatedAnalysis';
 export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ result }) => {
   const { t } = useI18n();
   const domain = useDomain();
+  const [speechNotice, setSpeechNotice] = useState<string | null>(null);
 
   const noSpeech = result.signals?.noSpeechDetected === true;
   const source = result.signals?.source;
@@ -50,9 +52,23 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
   const label = t(riskLabelKey(result.probability));
   const pct = Math.round(Math.min(1, Math.max(0, result.probability)) * 100);
 
+  // Read aloud: the verdict first (the single most important line for someone
+  // who cannot read it), then the reasoning and the advice.
+  const spokenPassages = [
+    `${label}. ${pct}% ${t('analyze.probability')}.`,
+    `${t('analyze.why')}.`,
+    ...reasons,
+    `${t('analyze.whatToDo')}.`,
+    advice,
+  ];
+
   return (
     <Card>
-      <SubHeading>{t('analyze.result')}</SubHeading>
+      <View style={styles.headerRow}>
+        <SubHeading>{t('analyze.result')}</SubHeading>
+        <SpeakButton passages={spokenPassages} onUnavailable={setSpeechNotice} />
+      </View>
+      {speechNotice ? <Muted style={styles.notice}>{speechNotice}</Muted> : null}
       <RiskGauge
         probability={result.probability}
         level={result.riskLevel}
@@ -84,4 +100,11 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
 
 const styles = StyleSheet.create({
   section: { gap: spacing.xs, marginTop: spacing.sm },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  notice: { color: colors.medium },
 });

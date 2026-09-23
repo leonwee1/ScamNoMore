@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackendBanner } from '../components/BackendBanner';
+import { BrandMark } from '../components/BrandMark';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, Muted, SubHeading } from '../components/ui';
 import { useI18n } from '../i18n';
@@ -17,7 +18,7 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <ScreenHeader title={t('app.name')} />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} />
         <BackendBanner />
         <SubHeading>{t('home.prompt')}</SubHeading>
 

@@ -79,11 +79,36 @@ describe('addReport (shared table)', () => {
       description: 'Received a fake DBS SMS asking for my OTP and password urgently.',
     });
     expect(scamStore.count()).toBe(before + 1);
-    expect(rec.verified).toBe(true);
     expect(rec.keywords.length).toBeGreaterThan(0);
     // The new report is discoverable via search on the shared dataset.
     const found = searchScams({ town: 'Tampines', scamType: 'Phishing Scam' });
     expect(found.some((r) => r.id === rec.id)).toBe(true);
+  });
+
+  it('marks a new report unverified, pending investigation', () => {
+    const rec = scamStore.addReport({
+      dateReported: '2026-01-15',
+      scamType: 'Phishing Scam',
+      town: 'Tampines',
+      description: 'Received a fake DBS SMS asking for my OTP and password urgently.',
+    });
+    // A public report is an allegation until the police confirm it. Only then
+    // would the Verified column be flipped to Yes.
+    expect(rec.verified).toBe(false);
+  });
+
+  it('hides unverified reports from verified-only searches', () => {
+    const rec = scamStore.addReport({
+      dateReported: '2026-01-15',
+      scamType: 'Phishing Scam',
+      town: 'Tampines',
+      description: 'Fake bank SMS demanding an urgent transfer to a new account.',
+    });
+    const verified = searchScams({ verifiedOnly: true, town: 'Tampines' });
+    expect(verified.some((r) => r.id === rec.id)).toBe(false);
+
+    const everything = searchScams({ verifiedOnly: false, town: 'Tampines' });
+    expect(everything.some((r) => r.id === rec.id)).toBe(true);
   });
 });
 

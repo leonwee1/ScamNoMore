@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnalysisResultView } from '../components/AnalysisResultView';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -8,35 +8,73 @@ import { useI18n } from '../i18n';
 import { AnalysisResult } from '../services/analysis';
 import { api, MAX_MEDIA_MB } from '../services/api';
 import { pickVideo } from '../services/media';
-import { colors, spacing } from '../theme';
+import { colors, font, radius, spacing } from '../theme';
 
-/** Video flow: upload video -> Whisper (audio track) -> gpt-4o -> scam result. */
+/**
+ * Video flow, laid out to match the audio screen: pick a file, the spoken audio
+ * is transcribed into an editable box, then that transcript is analysed.
+ *
+ * Transcribing first is what makes the verdict auditable. The user can see
+ * exactly what Whisper heard before anything is judged, and can correct a
+ * mis-heard word — which matters because a silent or noisy clip can otherwise
+ * produce a confident-looking result built on nothing.
+ */
 export const VideoAnalysisScreen: React.FC = () => {
   const { t, lang } = useI18n();
   const [uri, setUri] = useState<string | null>(null);
+  const [transcript, setTranscript] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  /** Whisper on the video's audio track, into the editable box. */
+  const transcribe = async (videoUri: string) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { text, noSpeechDetected } = await api.transcribeVideo(videoUri, lang);
+      setTranscript(text);
+      if (noSpeechDetected) {
+        setError(`${t('analyze.noSpeech.reason')} ${t('analyze.noSpeech.adviceVideo')}`);
+      }
+    } catch (e) {
+      setError(
+        `${e instanceof Error ? e.message : t('analyze.transcribeFailed')} ${t('analyze.orTypeBelow')}`
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const choose = async () => {
     setError(null);
     setResult(null);
+    setTranscript('');
     const picked = await pickVideo();
     if (!picked) {
       setError(t('analyze.noVideo'));
       return;
     }
     setUri(picked);
+    await transcribe(picked);
   };
 
+  // Open the picker straight away: the user already chose "Upload video file" on
+  // Home, so making them tap the same label again here is a wasted step.
+  useEffect(() => {
+    choose();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const analyze = async () => {
-    if (!uri) return;
+    if (!transcript.trim()) return;
     setLoading(true);
     setError(null);
     try {
-      // lang drives BOTH Whisper's decoding of the audio track and the language
-      // the model writes its reasons/advice in.
-      setResult(await api.analyzeVideo(uri, lang));
+      // source 'video' keeps the prompt's evidence type accurate, and sending
+      // only the text avoids re-uploading and re-transcribing the whole file.
+      setResult(await api.analyzeTranscript(transcript, lang, 'video'));
     } catch (e) {
       setError(e instanceof Error ? e.message : t('analyze.failed'));
     } finally {
@@ -51,16 +89,30 @@ export const VideoAnalysisScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.content}>
         {/* No title: the stack header above already names this screen. */}
         <ScreenHeader />
+
         <Card>
           <SubHeading>{t('home.uploadVideo')}</SubHeading>
           <Muted>{t('analyze.videoLimits', { size: MAX_MEDIA_MB })}</Muted>
           {uri ? <Body>{t('analyze.selected', { name: uri.split('/').pop() ?? '' })}</Body> : null}
-          <Button title={t('home.uploadVideo')} variant="secondary" onPress={choose} />
+          <Button title={t('home.uploadVideo')} onPress={choose} />
+        </Card>
+
+        <Card>
+          <Muted>{t('analyze.transcribed')}</Muted>
+          <TextInput
+            style={styles.input}
+            multiline
+            value={transcript}
+            onChangeText={setTranscript}
+            placeholder={busy ? t('analyze.transcribing') : '…'}
+            placeholderTextColor={colors.textMuted}
+            editable={!busy}
+          />
           <Button
             title={t('analyze.startAnalyzing')}
             onPress={analyze}
             loading={loading}
-            disabled={!uri}
+            disabled={!transcript.trim() || busy}
           />
         </Card>
 
@@ -74,4 +126,16 @@ export const VideoAnalysisScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
+  // Matches the transcript box on the voice screen.
+  input: {
+    minHeight: 120,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    color: colors.text,
+    fontSize: font.body,
+    textAlignVertical: 'top',
+    backgroundColor: colors.surfaceAlt,
+  },
 });
