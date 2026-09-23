@@ -1,9 +1,19 @@
+import { useHeaderHeight } from '@react-navigation/elements';
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
@@ -13,16 +23,27 @@ import { useI18n } from '../i18n';
 import { api, ChatTurn } from '../services/api';
 import { colors, font, radius, spacing } from '../theme';
 
-/** OpenAI-powered chatbot for scam Q&A and awareness tips. */
+/**
+ * OpenAI-powered chatbot for scam Q&A and awareness tips.
+ *
+ * Questions can be typed or spoken. Spoken questions are transcribed by Whisper
+ * into the input box rather than sent straight away, so the user can correct a
+ * mis-hearing before it reaches the model.
+ */
 export const ChatbotScreen: React.FC = () => {
   const { t, lang } = useI18n();
-  // Seeded from the dictionary, and re-seeded below if the language changes
-  // before the first message is sent.
+  const headerHeight = useHeaderHeight();
+
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder);
+
   const [turns, setTurns] = useState<ChatTurn[]>([
     { role: 'assistant', content: t('chatbot.greeting') },
   ]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   // Re-translate the opening line when the language changes, but only while the
@@ -42,6 +63,7 @@ export const ChatbotScreen: React.FC = () => {
     const next: ChatTurn[] = [...turns, { role: 'user', content: message }];
     setTurns(next);
     setDraft('');
+    setNotice(null);
     setLoading(true);
     try {
       // lang tells the model which language to answer in.
@@ -63,15 +85,62 @@ export const ChatbotScreen: React.FC = () => {
     }
   };
 
+  /** Transcribe a finished recording into the input box for review. */
+  const transcribe = async (uri: string) => {
+    setTranscribing(true);
+    setNotice(null);
+    try {
+      const { text, noSpeechDetected } = await api.transcribeAudio(uri, lang);
+      if (noSpeechDetected || !text.trim()) {
+        setNotice(t('chatbot.noSpeech'));
+        return;
+      }
+      // Append rather than replace, so a partly typed question is not lost.
+      setDraft((cur) => (cur.trim() ? `${cur.trim()} ${text}` : text));
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : t('analyze.transcribeFailed'));
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const toggleRecording = async () => {
+    try {
+      if (recorderState.isRecording) {
+        await recorder.stop();
+        const uri = recorder.uri;
+        if (uri) await transcribe(uri);
+        return;
+      }
+      const perm = await AudioModule.requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        setNotice(t('analyze.micDenied'));
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setNotice(null);
+    } catch {
+      setNotice(t('analyze.micError'));
+    }
+  };
+
+  const busy = loading || transcribing;
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        // Without this the on-screen keyboard covers the input row. The offset
+        // accounts for the native stack header, which sits outside this view.
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
       >
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
           {turns.map((turn, i) => (
@@ -90,7 +159,24 @@ export const ChatbotScreen: React.FC = () => {
           {loading ? <Muted>{t('chatbot.typing')}</Muted> : null}
         </ScrollView>
 
+        {recorderState.isRecording ? <Muted style={styles.status}>{t('chatbot.recording')}</Muted> : null}
+        {transcribing ? <Muted style={styles.status}>{t('analyze.transcribing')}</Muted> : null}
+        {notice ? <Muted style={styles.statusError}>{notice}</Muted> : null}
+
         <View style={styles.inputRow}>
+          <Pressable
+            onPress={toggleRecording}
+            disabled={loading || transcribing}
+            style={[styles.micBtn, recorderState.isRecording && styles.micBtnActive]}
+            accessibilityRole="button"
+            accessibilityLabel={
+              recorderState.isRecording ? t('analyze.stopRecording') : t('chatbot.askByVoice')
+            }
+            accessibilityState={{ disabled: busy }}
+          >
+            <Text style={styles.micIcon}>{recorderState.isRecording ? '■' : '🎤'}</Text>
+          </Pressable>
+
           <TextInput
             style={styles.input}
             value={draft}
@@ -99,11 +185,14 @@ export const ChatbotScreen: React.FC = () => {
             placeholderTextColor={colors.textMuted}
             onSubmitEditing={send}
             returnKeyType="send"
+            editable={!transcribing}
+            multiline
           />
           <Button
             title={t('chatbot.send')}
             onPress={send}
             loading={loading}
+            disabled={!draft.trim() || transcribing}
             style={{ paddingHorizontal: 18 }}
           />
         </View>
@@ -123,23 +212,41 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  status: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
+  statusError: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs, color: colors.high },
   inputRow: {
     flexDirection: 'row',
+    alignItems: 'flex-end',
     gap: spacing.sm,
     padding: spacing.md,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
+  micBtn: {
+    width: 48,
+    minHeight: 48,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  micBtnActive: { backgroundColor: colors.high, borderColor: colors.high },
+  micIcon: { fontSize: 20, color: colors.primary },
   input: {
     flex: 1,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
+    paddingTop: Platform.OS === 'ios' ? 14 : 8,
+    paddingBottom: Platform.OS === 'ios' ? 14 : 8,
     color: colors.text,
     fontSize: font.body,
     backgroundColor: colors.surfaceAlt,
     minHeight: 48,
+    maxHeight: 120,
   },
 });

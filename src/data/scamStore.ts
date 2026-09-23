@@ -135,6 +135,63 @@ export function computeStats(list: ScamRecord[]): ScamStats {
   };
 }
 
+/**
+ * Compact statistics describing the whole dataset, for the chatbot.
+ *
+ * The dataset lives in the app, not on the server, and grows as users file
+ * reports — so the figures travel with each chat request rather than being
+ * duplicated server-side. Deliberately small (a few hundred tokens): full rows
+ * would be far too large to send per message and the model only needs aggregates
+ * to answer questions like "top 3 scam types in 2023".
+ */
+export interface DatasetSummary {
+  totalCases: number;
+  verifiedCases: number;
+  userReports: number;
+  byYear: Record<string, number>;
+  /** Every scam type, most common first. */
+  byType: Array<{ type: string; count: number }>;
+  /** Top types within each year, so year-specific questions can be answered. */
+  byTypePerYear: Record<string, Array<{ type: string; count: number }>>;
+  topTowns: Array<{ town: string; count: number }>;
+  topKeywords: Array<{ keyword: string; count: number }>;
+}
+
+export function datasetSummary(): DatasetSummary {
+  const all = scamStore.all();
+  const stats = computeStats(all);
+
+  const byYear: Record<string, number> = {};
+  for (const row of stats.byYear) byYear[String(row.year)] = row.count;
+
+  // Per-year type counts, trimmed to the leading few for each year.
+  const perYear = new Map<number, Map<string, number>>();
+  for (const r of all) {
+    const forYear = perYear.get(r.year) ?? new Map<string, number>();
+    forYear.set(r.scamType, (forYear.get(r.scamType) ?? 0) + 1);
+    perYear.set(r.year, forYear);
+  }
+
+  const byTypePerYear: Record<string, Array<{ type: string; count: number }>> = {};
+  for (const [year, counts] of Array.from(perYear.entries()).sort((a, b) => a[0] - b[0])) {
+    byTypePerYear[String(year)] = Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([type, count]) => ({ type, count }));
+  }
+
+  return {
+    totalCases: all.length,
+    verifiedCases: all.filter((r) => r.verified).length,
+    userReports: all.filter((r) => r.source === 'user-report').length,
+    byYear,
+    byType: stats.byType,
+    byTypePerYear,
+    topTowns: stats.byTown.slice(0, 12),
+    topKeywords: stats.topKeywords.slice(0, 12),
+  };
+}
+
 /** Distinct scam types present in the dataset (for dropdowns). */
 export function scamTypes(): string[] {
   return Array.from(new Set(scamStore.all().map((r) => r.scamType))).sort();

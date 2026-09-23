@@ -34,6 +34,13 @@ export interface AnalysisResult {
   detectedText?: string; // OCR text or transcript actually extracted by AWS
   advice: string;
   signals?: AnalysisSignals;
+  /**
+   * Language the model wrote `reasons` and `advice` in, stamped by the client at
+   * request time. Lets the UI notice that a stored verdict no longer matches the
+   * selected language and translate it, instead of showing a half-translated
+   * screen.
+   */
+  language?: string;
 }
 
 /**

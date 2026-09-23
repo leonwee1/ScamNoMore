@@ -6,7 +6,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, Muted, SubHeading } from '../components/ui';
 import { useI18n } from '../i18n';
 import { AnalysisResult } from '../services/analysis';
-import { api } from '../services/api';
+import { api, MAX_MEDIA_MB } from '../services/api';
 import { pickVideo } from '../services/media';
 import { colors, spacing } from '../theme';
 
@@ -44,13 +44,16 @@ export const VideoAnalysisScreen: React.FC = () => {
     }
   };
 
+  // 'bottom' only: the native stack header already clears the status bar, so
+  // asking for the top inset here would add a second copy of it.
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <ScreenHeader title={t('home.video.group')} />
+        {/* No title: the stack header above already names this screen. */}
+        <ScreenHeader />
         <Card>
           <SubHeading>{t('home.uploadVideo')}</SubHeading>
-          <Muted>{t('analyze.maxDuration')}</Muted>
+          <Muted>{t('analyze.videoLimits', { size: MAX_MEDIA_MB })}</Muted>
           {uri ? <Body>{t('analyze.selected', { name: uri.split('/').pop() ?? '' })}</Body> : null}
           <Button title={t('home.uploadVideo')} variant="secondary" onPress={choose} />
           <Button

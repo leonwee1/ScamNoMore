@@ -27,9 +27,11 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             title={t('home.takePicture')}
             onPress={() => navigation.navigate('ImageAnalysis', { mode: 'camera' })}
           />
+          {/* All five options on this screen are equal choices, so they all use
+              the primary style. A secondary button reads as "less important",
+              which is not true of uploading versus taking a picture. */}
           <Button
             title={t('home.uploadImage')}
-            variant="secondary"
             onPress={() => navigation.navigate('ImageAnalysis', { mode: 'library' })}
           />
         </Card>
@@ -42,7 +44,6 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           />
           <Button
             title={t('home.sayWhat')}
-            variant="secondary"
             onPress={() => navigation.navigate('VoiceAnalysis', { mode: 'record' })}
           />
         </Card>
@@ -55,8 +56,11 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           />
         </Card>
 
-        <View style={styles.tipBox}>
-          <Body>{t('home.tip')}</Body>
+        {/* Styled as a caution rather than a neutral tip, since the whole point
+            is that it should catch the eye before the user uploads anything. */}
+        <View style={styles.cautionBox}>
+          <Body style={styles.cautionTitle}>⚠️ {t('home.cautionTitle')}</Body>
+          <Body>{t('home.caution')}</Body>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -66,9 +70,13 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
-  tipBox: {
-    backgroundColor: colors.surfaceAlt,
+  cautionBox: {
+    backgroundColor: '#3B2A12',
+    borderColor: colors.medium,
+    borderWidth: 1,
     borderRadius: 12,
     padding: spacing.md,
+    gap: spacing.xs,
   },
+  cautionTitle: { color: colors.medium, fontWeight: '800' },
 });

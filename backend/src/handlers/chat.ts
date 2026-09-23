@@ -4,7 +4,11 @@ import { chat, ChatTurn } from '../lib/openai';
 /**
  * POST /chat
  * Body: { message, history?: [{ role, content }], today?: 'YYYY-MM-DD',
- *         language?: 'en'|'zh'|'ms'|'ta' }
+ *         language?: 'en'|'zh'|'ms'|'ta', appData?: <dataset summary> }
+ *
+ * `appData` carries aggregate statistics for the case records held in the app,
+ * so the chatbot can answer questions about them. The dataset itself is bundled
+ * with the app and grows as users file reports, so it is not available here.
  * Returns: { reply: string }
  *
  * `today` is the device's calendar date. The model has no clock, so without it
@@ -15,15 +19,16 @@ import { chat, ChatTurn } from '../lib/openai';
  */
 export const handler: Handler = async (req) => {
   try {
-    const { message, history, today, language } = json<{
+    const { message, history, today, language, appData } = json<{
       message?: string;
       history?: ChatTurn[];
       today?: string;
       language?: string;
+      appData?: unknown;
     }>(req);
     if (!message?.trim()) return badRequest('Missing "message"');
 
-    const reply = await chat(message, history ?? [], today, language);
+    const reply = await chat(message, history ?? [], today, language, appData);
     return ok({ reply });
   } catch (err) {
     return serverError(err);

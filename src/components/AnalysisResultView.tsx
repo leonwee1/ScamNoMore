@@ -6,6 +6,7 @@ import { AnalysisResult, riskLabelKey } from '../services/analysis';
 import { spacing } from '../theme';
 import { RiskGauge } from './RiskGauge';
 import { Body, Card, Muted, SubHeading } from './ui';
+import { useTranslatedAnalysis } from './useTranslatedAnalysis';
 
 /**
  * Renders the scam-analysis result exactly as the wireframe describes: a
@@ -29,18 +30,22 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
   const noSpeech = result.signals?.noSpeechDetected === true;
   const source = result.signals?.source;
 
+  // Re-translates the model's prose when the user switches language, so the
+  // findings never sit in a different language from the headings above them.
+  const translated = useTranslatedAnalysis(result);
+
   const reasons = noSpeech
     ? [
         t('analyze.noSpeech.reason'),
         source === 'video' ? t('analyze.noSpeech.video') : t('analyze.noSpeech.voice'),
       ]
-    : result.reasons;
+    : translated.reasons;
 
   const advice = noSpeech
     ? source === 'video'
       ? t('analyze.noSpeech.adviceVideo')
       : t('analyze.noSpeech.adviceVoice')
-    : result.advice;
+    : translated.advice;
 
   const label = t(riskLabelKey(result.probability));
   const pct = Math.round(Math.min(1, Math.max(0, result.probability)) * 100);
@@ -59,6 +64,8 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
           {t('analyze.likelyCategory')}: {domain.scamType(result.scamType)}
         </Muted>
       ) : null}
+
+      {translated.translating ? <Muted>{t('analyze.translating')}</Muted> : null}
 
       <View style={styles.section}>
         <SubHeading>{t('analyze.why')}</SubHeading>

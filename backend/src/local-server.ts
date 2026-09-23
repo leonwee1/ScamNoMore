@@ -20,6 +20,7 @@ import { handler as analyzeText } from './handlers/analyzeText';
 import { handler as analyzeVideo } from './handlers/analyzeVideo';
 import { handler as chat } from './handlers/chat';
 import { handler as transcribe } from './handlers/transcribe';
+import { handler as translate } from './handlers/translate';
 import { MAX_UPLOAD_BYTES } from './lib/audio';
 import { AUTH_HEADER, authEnabled, checkAuth } from './lib/auth';
 import type { Handler } from './lib/http';
@@ -41,6 +42,7 @@ const ROUTES: Record<string, Handler> = {
   '/analyze/video': analyzeVideo,
   '/analyze/text': analyzeText,
   '/transcribe': transcribe,
+  '/translate': translate,
   '/chat': chat,
 };
 

@@ -4,9 +4,11 @@ import { parseAnalysisJson } from './parse';
 import {
   ANALYSIS_SYSTEM_PROMPT,
   buildAnalysisUserPrompt,
+  buildAppDataContext,
   buildChatLanguageContext,
   buildDateContext,
   buildLanguageContext,
+  buildTranslationPrompt,
   CHAT_SYSTEM_PROMPT,
 } from './prompts';
 import { AnalysisResult, AnalysisSignals, riskFromProbability } from './types';
@@ -350,6 +352,58 @@ export function noSpeechResult(source: 'video' | 'voice'): AnalysisResult {
   };
 }
 
+/**
+ * Translate strings the model previously wrote into another language.
+ *
+ * Needed because a completed analysis holds model-written prose. When the user
+ * switches language the UI re-renders from the dictionaries immediately, but
+ * `reasons` and `advice` would otherwise stay in the original language, leaving a
+ * half-translated screen.
+ *
+ * Returns the input unchanged on any failure. A stale-language verdict is far
+ * better than a blank one.
+ */
+export async function translateTexts(texts: string[], language?: string): Promise<string[]> {
+  const code = normalizeLanguage(language);
+  // Unlike the analysis prompts, English IS a valid target here: the original
+  // may have been written in Chinese and the user may be switching to English.
+  if (!code || texts.length === 0) return texts;
+  if (texts.every((t) => !t.trim())) return texts;
+
+  const res = await getClient().chat.completions.create({
+    model: CHAT_MODEL,
+    temperature: 0,
+    // Tamil and Chinese need noticeably more tokens per character than English.
+    max_tokens: 2000,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: buildTranslationPrompt(code) },
+      { role: 'user', content: JSON.stringify({ texts }) },
+    ],
+  });
+
+  const raw = res.choices[0]?.message?.content;
+  if (!raw) throw emptyCompletionError(res, 'translation');
+
+  const parsed = JSON.parse(raw) as { texts?: unknown };
+  const out = parsed.texts;
+
+  // Length must match or the caller cannot line translations up with reasons.
+  if (
+    !Array.isArray(out) ||
+    out.length !== texts.length ||
+    !out.every((s) => typeof s === 'string')
+  ) {
+    throw new Error(
+      `Translation returned ${Array.isArray(out) ? out.length : 'a non-array'} ` +
+        `item(s) for ${texts.length} input string(s).`
+    );
+  }
+
+  // An empty translation would blank a reason; keep the original for those.
+  return out.map((s, i) => (s.trim() ? s : texts[i]));
+}
+
 export interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
@@ -360,7 +414,8 @@ export async function chat(
   message: string,
   history: ChatTurn[] = [],
   today?: string,
-  language?: string
+  language?: string,
+  appData?: unknown
 ): Promise<string> {
   // Keep the last 10 turns to bound cost and latency.
   const recent = history
@@ -382,6 +437,7 @@ export async function chat(
     messages: [
       { role: 'system', content: CHAT_SYSTEM_PROMPT },
       { role: 'system', content: buildDateContext(today) },
+      ...systemIf(buildAppDataContext(appData)),
       ...systemIf(buildChatLanguageContext(language)),
       ...messages,
     ],

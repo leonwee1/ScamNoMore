@@ -6,7 +6,7 @@ import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, Muted } from '../components/ui';
 import { useI18n } from '../i18n';
 import { AnalysisResult } from '../services/analysis';
-import { api } from '../services/api';
+import { api, MAX_MEDIA_MB } from '../services/api';
 import { pickImage } from '../services/media';
 import { colors, radius, spacing } from '../theme';
 
@@ -50,13 +50,18 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     }
   };
 
+  // 'bottom' only: the native stack header already clears the status bar, so
+  // asking for the top inset here would add a second copy of it.
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <ScreenHeader title={t('home.uploadImage')} />
+        {/* No title: the stack header above already names this screen. */}
+        <ScreenHeader />
 
         <Card>
-          <Muted>{t('home.text.group')}</Muted>
+          {/* The group name now lives in the stack header, so repeating it here
+              would be a third copy of the same words. */}
+          <Muted>{t('analyze.imageLimits', { size: MAX_MEDIA_MB })}</Muted>
           {uri ? (
             <Image source={{ uri }} style={styles.preview} resizeMode="cover" />
           ) : (

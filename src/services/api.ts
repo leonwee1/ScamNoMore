@@ -1,3 +1,4 @@
+import { datasetSummary } from '../data/scamStore';
 import { AnalysisResult } from './analysis';
 import { config } from './config';
 import { deviceToday } from './dates';
@@ -44,6 +45,9 @@ function requireBaseUrl(): string {
  * first.
  */
 export const MAX_MEDIA_BYTES = 64 * 1024 * 1024;
+
+/** Same limit in MB, for display in the UI. Keeps labels honest. */
+export const MAX_MEDIA_MB = MAX_MEDIA_BYTES / 1024 / 1024;
 
 const TIMEOUT_MS = 180_000; // Whisper on a 5-minute clip can take a while.
 
@@ -177,17 +181,28 @@ export interface ChatTurn {
   content: string;
 }
 
+/**
+ * Record which language the model was asked to answer in, so the UI can later
+ * detect that a stored verdict no longer matches the user's selection.
+ */
+function stampLanguage(result: AnalysisResult, language?: string): AnalysisResult {
+  return language ? { ...result, language } : result;
+}
+
 export const api = {
   /**
    * gpt-4o vision: reads the text in the image and judges visual scam cues.
    * `language` is the selected UI language; the model writes its reasons and
    * advice in it, while `scamType` stays a canonical English enum value.
    */
-  analyzeImage(imageUri: string, language?: string): Promise<AnalysisResult> {
-    return postMedia<AnalysisResult>(
-      `/analyze/image${mediaQuery({ language })}`,
-      imageUri,
-      'image'
+  async analyzeImage(imageUri: string, language?: string): Promise<AnalysisResult> {
+    return stampLanguage(
+      await postMedia<AnalysisResult>(
+        `/analyze/image${mediaQuery({ language })}`,
+        imageUri,
+        'image'
+      ),
+      language
     );
   },
 
@@ -196,11 +211,14 @@ export const api = {
    * `language` is the app's selected UI language, passed so Whisper does not
    * have to guess (its auto-detect mistakes short or accented English for Malay).
    */
-  analyzeVideo(videoUri: string, language?: string): Promise<AnalysisResult> {
-    return postMedia<AnalysisResult>(
-      `/analyze/video${mediaQuery({ language })}`,
-      videoUri,
-      'video'
+  async analyzeVideo(videoUri: string, language?: string): Promise<AnalysisResult> {
+    return stampLanguage(
+      await postMedia<AnalysisResult>(
+        `/analyze/video${mediaQuery({ language })}`,
+        videoUri,
+        'video'
+      ),
+      language
     );
   },
 
@@ -228,21 +246,50 @@ export const api = {
   },
 
   /** gpt-4o analysis of the (user-editable) transcript. */
-  analyzeTranscript(text: string, language?: string): Promise<AnalysisResult> {
-    return postJson<AnalysisResult>('/analyze/text', { text, source: 'voice', language });
+  async analyzeTranscript(text: string, language?: string): Promise<AnalysisResult> {
+    return stampLanguage(
+      await postJson<AnalysisResult>('/analyze/text', { text, source: 'voice', language }),
+      language
+    );
   },
 
   /** gpt-4o analysis of arbitrary text (message / email / advertisement). */
-  analyzeTextContent(text: string, language?: string): Promise<AnalysisResult> {
-    return postJson<AnalysisResult>('/analyze/text', { text, source: 'text', language });
+  async analyzeTextContent(text: string, language?: string): Promise<AnalysisResult> {
+    return stampLanguage(
+      await postJson<AnalysisResult>('/analyze/text', { text, source: 'text', language }),
+      language
+    );
   },
 
-  /** gpt-4o chatbot with conversation history, answering in `language`. */
+  /**
+   * Re-express already-generated prose in another language.
+   *
+   * Returns the same number of strings, in order. Used when the user switches
+   * language after an analysis has finished.
+   */
+  async translate(texts: string[], language: string): Promise<string[]> {
+    const res = await postJson<{ texts?: string[] }>('/translate', { texts, language });
+    const out = res.texts;
+    if (!Array.isArray(out) || out.length !== texts.length) {
+      throw new Error('Translation response did not match the requested strings.');
+    }
+    return out;
+  },
+
+  /**
+   * gpt-4o chatbot with conversation history, answering in `language`.
+   *
+   * Sends aggregate statistics for the app's case records so the assistant can
+   * answer questions about them ("top 3 scam types in 2023"). The dataset is
+   * bundled in the app and grows with user reports, so the backend cannot read
+   * it directly — the figures have to travel with the request.
+   */
   async chat(message: string, history: ChatTurn[], language?: string): Promise<string> {
     const { reply } = await postJson<{ reply: string }>('/chat', {
       message,
       history,
       language,
+      appData: datasetSummary(),
     });
     return reply;
   },

@@ -71,10 +71,13 @@ export const RootNavigator: React.FC = () => {
       }}
     >
       <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+      {/* Each header names the GROUP the user tapped from on Home ("Text",
+          "Voice", "Video") rather than the individual button, so the heading
+          matches the card they came from and reads the same in both modes. */}
       <Stack.Screen
         name="ImageAnalysis"
         component={ImageAnalysisScreen}
-        options={{ title: t('home.uploadImage') }}
+        options={{ title: t('home.text.group') }}
       />
       <Stack.Screen
         name="VoiceAnalysis"

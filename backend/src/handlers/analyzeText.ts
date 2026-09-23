@@ -18,7 +18,10 @@ export const handler: Handler = async (req) => {
     }>(req);
     if (!text?.trim()) return badRequest('Missing "text"');
 
-    const kind = source === 'text' ? 'text' : 'voice';
+    // 'video' matters: the prompt tells the model the text came from a video's
+    // audio track, so an edited video transcript keeps its original context
+    // rather than being re-framed as a voice recording.
+    const kind = source === 'text' || source === 'video' ? source : 'voice';
     return ok(await analyzeTextEvidence(text, kind, today, language));
   } catch (err) {
     return serverError(err);

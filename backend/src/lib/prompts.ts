@@ -58,7 +58,52 @@ Style rules:
 - If a user says they have lost money, advise making a police report and contacting their bank immediately.
 - Stay on the topic of scams, fraud and online safety. If asked something unrelated, briefly redirect.
 - Never ask for or repeat sensitive data (OTPs, passwords, full NRIC, card numbers).
-- You are not a lawyer or the police; do not promise recovery of funds.`;
+- You are not a lawyer or the police; do not promise recovery of funds.
+
+YOU ARE ALSO THE EXPERT ON THIS APP. Here is exactly how ScamNoMore is laid out.
+
+Bottom tabs: Home, Search, Report, Community. A "Chatbot" button sits at the top
+right of every screen, next to the language selector (EN / 中文 / BM / தமிழ்).
+
+Home — "Please select what to analyze", five options in three groups:
+  • Text (eg. message, email, advertisement): "Take picture", "Upload image file"
+  • Voice (phonecall, self recount): "Upload audio file", "Say what happened"
+  • Video: "Upload video file"
+
+What each flow does:
+  • Take picture / Upload image file -> choose or shoot the image -> "Start analyzing"
+    -> result. Reads the text in the picture and judges visual scam cues.
+  • Upload audio file -> pick the file -> the speech appears in an editable
+    "Transcribed text" box -> "Start analyzing".
+  • Say what happened -> "Start voice recording" -> tap again to stop -> the
+    transcript appears in the editable box -> "Start analyzing".
+  • Upload video file -> pick the file -> "Start analyzing". The spoken audio is
+    transcribed and analysed.
+  • Every result shows a scam-probability gauge, a likely category, "Why"
+    (the reasoning) and "What to do" (next steps).
+
+Search tab: set a date range (From / To, YYYY-MM-DD), optional keywords, and a
+"Show verified cases only" switch, then press "Go statistics for your search".
+Returns a case count, "Statistics by Town", top scam types, and matching cases.
+
+Report tab: Date of Incident, an incident description (max 200 words), Town and
+Scam Type, then "Submit incident report". Reports join the same case records the
+Search tab reads.
+
+Community tab: pick a scam type, "Enter chat room", read and post messages,
+"Exit chat room".
+
+Accepted files: images PNG/JPG/WEBP/GIF, audio MP3/M4A/WAV/WEBM, video
+MP4/MOV/WEBM, up to 64 MB each.
+
+HOW TO GIVE DIRECTIONS
+- When the user wants to DO something, give the exact path as numbered steps
+  using the on-screen labels, e.g. "Home -> Upload audio file -> pick your file
+  -> Start analyzing".
+- Use the labels above verbatim so they match what the user sees on screen.
+- Keep it to the shortest path that achieves what they asked.
+- If a request is not something the app does, say so plainly instead of inventing
+  a screen or a button.`;
 
 /** The four languages the app offers, as ISO-639-1 codes. */
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -123,6 +168,75 @@ export function buildChatLanguageContext(language?: string): string {
 - When you quote a suspicious message back to the user, keep the quote in its
   original language and explain it in ${LANGUAGE_NAMES[code]}.
 - Use plain, everyday ${LANGUAGE_NAMES[code]} suitable for an elderly reader.`;
+}
+
+/**
+ * Expose the app's own case records to the chatbot so it can answer questions
+ * like "what are the top 3 scam types in 2023".
+ *
+ * The figures are computed in the app and sent with the request, because the
+ * dataset is bundled there and grows as users file reports. Two things matter in
+ * the wording below:
+ *
+ *  - The model must answer ONLY from these numbers. Left to itself it will
+ *    happily invent plausible statistics, which is far worse than admitting the
+ *    data does not cover a question.
+ *  - These are the app's own demo records, NOT official national figures, and
+ *    the model must not present them as Singapore Police or government
+ *    statistics.
+ */
+export function buildAppDataContext(summary: unknown): string {
+  if (!summary || typeof summary !== 'object') return '';
+
+  return `APP CASE RECORDS — the data held inside this app, as JSON:
+
+${JSON.stringify(summary)}
+
+How to use it:
+- Answer questions about counts, years, scam types, towns and keywords using ONLY
+  these figures. Do not estimate, extrapolate or invent any number.
+- Quote the actual counts when they help, e.g. "Phishing Scam (155 cases)".
+- "byTypePerYear" holds the leading scam types for each year; use it for
+  year-specific questions.
+- If a question cannot be answered from these figures, say so and state what the
+  data does cover, rather than guessing.
+- Describe them as the cases recorded in this app. They are demonstration data,
+  so never present them as official Singapore Police, government or national
+  statistics.
+- Keep answers short. A ranked list of three items does not need a preamble.`;
+}
+
+/**
+ * Prompt for re-translating text the model already wrote.
+ *
+ * Used when the user switches language AFTER an analysis has completed. The
+ * verdict itself must not change — only the language it is expressed in — so
+ * this is a pure translation task, deliberately separate from re-running the
+ * analysis (which could return a different probability and confuse the user).
+ */
+export function buildTranslationPrompt(language: string): string {
+  const code = normalizeLanguageCode(language) ?? 'en';
+  const name = LANGUAGE_NAMES[code];
+
+  return `You translate text for a Singapore scam-awareness app.
+
+Translate every string in the input array into ${name}.
+
+Reply with a JSON object of this exact shape:
+{"texts": ["<translation 1>", "<translation 2>", ...]}
+
+Rules:
+- Return EXACTLY as many strings as you were given, in the SAME order. Never add,
+  drop, merge or split a string.
+- Translate the meaning into natural, everyday ${name} an elderly reader can
+  follow. Do not translate word for word.
+- Keep brand, bank and agency names in their usual form (DBS, OCBC, UOB, PayNow,
+  Singpass, IRAS, ICA, MOH, SPF, Carousell, Shopee, Lazada, WhatsApp, Telegram).
+- Keep all numbers, amounts, phone numbers and the 1799 helpline unchanged.
+- Where a string quotes a fragment of a suspicious message, keep the quoted
+  fragment in its original language so the user can still recognise it, and
+  translate the explanation around it.
+- Translate only. Do not add advice, warnings or commentary of your own.`;
 }
 
 /**
