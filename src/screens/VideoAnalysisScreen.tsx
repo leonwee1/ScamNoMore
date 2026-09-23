@@ -2,10 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnalysisResultView } from '../components/AnalysisResultView';
+import { useMediaPrivacyConsent } from '../components/MediaPrivacyConsent';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, Muted, SubHeading } from '../components/ui';
 import { useI18n } from '../i18n';
-import { AnalysisResult } from '../services/analysis';
+import { AnalysisResult, unableToAssessResult } from '../services/analysis';
 import { api, MAX_MEDIA_MB } from '../services/api';
 import { pickVideo } from '../services/media';
 import { colors, font, radius, spacing } from '../theme';
@@ -27,16 +28,18 @@ export const VideoAnalysisScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { requestConsent, consentDialog } = useMediaPrivacyConsent();
 
   /** Whisper on the video's audio track, into the editable box. */
   const transcribe = async (videoUri: string) => {
     setBusy(true);
     setError(null);
+    setResult(null);
     try {
       const { text, noSpeechDetected } = await api.transcribeVideo(videoUri, lang);
       setTranscript(text);
       if (noSpeechDetected) {
-        setError(`${t('analyze.noSpeech.reason')} ${t('analyze.noSpeech.adviceVideo')}`);
+        setResult(unableToAssessResult('video', 'no-speech'));
       }
     } catch (e) {
       setError(
@@ -45,6 +48,10 @@ export const VideoAnalysisScreen: React.FC = () => {
     } finally {
       setBusy(false);
     }
+  };
+
+  const requestTranscription = (videoUri: string) => {
+    requestConsent(() => transcribe(videoUri));
   };
 
   const choose = async () => {
@@ -57,7 +64,7 @@ export const VideoAnalysisScreen: React.FC = () => {
       return;
     }
     setUri(picked);
-    await transcribe(picked);
+    requestTranscription(picked);
   };
 
   // Open the picker straight away: the user already chose "Upload video file" on
@@ -67,7 +74,7 @@ export const VideoAnalysisScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const analyze = async () => {
+  const analyzeConfirmed = async () => {
     if (!transcript.trim()) return;
     setLoading(true);
     setError(null);
@@ -80,6 +87,11 @@ export const VideoAnalysisScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const analyze = () => {
+    if (!transcript.trim()) return;
+    requestConsent(analyzeConfirmed);
   };
 
   // 'bottom' only: the native stack header already clears the status bar, so
@@ -119,6 +131,7 @@ export const VideoAnalysisScreen: React.FC = () => {
         {error ? <Muted style={{ color: colors.high }}>{error}</Muted> : null}
         {result ? <AnalysisResultView result={result} /> : null}
       </ScrollView>
+      {consentDialog}
     </SafeAreaView>
   );
 };

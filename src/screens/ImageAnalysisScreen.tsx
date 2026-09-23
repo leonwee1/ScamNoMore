@@ -2,22 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnalysisResultView } from '../components/AnalysisResultView';
+import { useMediaPrivacyConsent } from '../components/MediaPrivacyConsent';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Body, Button, Card, Muted } from '../components/ui';
 import { useI18n } from '../i18n';
 import { AnalysisResult } from '../services/analysis';
 import { api, MAX_MEDIA_MB } from '../services/api';
-import { pickImage } from '../services/media';
+import { pickImage, PickedImage } from '../services/media';
 import { colors, radius, spacing } from '../theme';
 
 /** Image analysis flow: take/upload picture -> gpt-4o vision -> scam result. */
 export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   const { t, lang } = useI18n();
   const mode: 'camera' | 'library' = route.params?.mode ?? 'library';
-  const [uri, setUri] = useState<string | null>(null);
+  const [image, setImage] = useState<PickedImage | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { requestConsent, consentDialog } = useMediaPrivacyConsent();
 
   const choose = async () => {
     setError(null);
@@ -27,7 +29,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
       setError(t('analyze.noImage'));
       return;
     }
-    setUri(picked);
+    setImage(picked);
   };
 
   // Auto-open the picker when the screen mounts.
@@ -36,18 +38,23 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const analyze = async () => {
-    if (!uri) return;
+  const analyzeConfirmed = async () => {
+    if (!image) return;
     setLoading(true);
     setError(null);
     try {
       // lang tells the model which language to write its reasons/advice in.
-      setResult(await api.analyzeImage(uri, lang));
+      setResult(await api.analyzeImage(image.uri, lang, image.mimeType));
     } catch (e) {
       setError(e instanceof Error ? e.message : t('analyze.failed'));
     } finally {
       setLoading(false);
     }
+  };
+
+  const analyze = () => {
+    if (!image) return;
+    requestConsent(analyzeConfirmed);
   };
 
   // 'bottom' only: the native stack header already clears the status bar, so
@@ -62,8 +69,8 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
           {/* The group name now lives in the stack header, so repeating it here
               would be a third copy of the same words. */}
           <Muted>{t('analyze.imageLimits', { size: MAX_MEDIA_MB })}</Muted>
-          {uri ? (
-            <Image source={{ uri }} style={styles.preview} resizeMode="cover" />
+          {image ? (
+            <Image source={{ uri: image.uri }} style={styles.preview} resizeMode="cover" />
           ) : (
             <Body>{t('analyze.selectImage')}</Body>
           )}
@@ -76,13 +83,14 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
             title={t('analyze.startAnalyzing')}
             onPress={analyze}
             loading={loading}
-            disabled={!uri}
+            disabled={!image}
           />
         </Card>
 
         {error ? <Muted style={{ color: colors.high }}>{error}</Muted> : null}
         {result ? <AnalysisResultView result={result} /> : null}
       </ScrollView>
+      {consentDialog}
     </SafeAreaView>
   );
 };

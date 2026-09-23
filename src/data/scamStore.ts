@@ -2,14 +2,16 @@ import raw from './scams.json';
 import { ScamRecord, ScamStats } from './types';
 
 /**
- * In-memory scam store. Seeded from the bundled 5000-row dataset and extended
- * at runtime by user incident reports (Report screen) so that reports land in
- * the SAME table as the mockup data, exactly as the wireframe specifies.
+ * Scam store. The bundled 5,000 verified mock rows remain available offline;
+ * report rows are hydrated from the backend's shared SQLite database whenever
+ * an Expo session starts.
  *
  * The dataset is bundled with the app and kept in memory, so search and reports
  * work offline and instantly in Expo Go.
  */
-let records: ScamRecord[] = (raw as ScamRecord[]).slice();
+const seedRecords: ScamRecord[] = (raw as ScamRecord[]).slice();
+const seedIds = new Set(seedRecords.map((record) => record.id));
+let records: ScamRecord[] = seedRecords.slice();
 
 /** Listeners notified whenever the dataset changes (e.g. after a report). */
 type Listener = () => void;
@@ -26,41 +28,35 @@ export const scamStore = {
   },
 
   /**
-   * Append a user's incident report to the shared dataset.
-   *
-   * The row lands in the same table as the 5000 seed records, but with
-   * `verified: false`. A public report is an ALLEGATION until the police have
-   * investigated it; only then would someone flip the Verified column to Yes.
-   * The seed rows are all Yes precisely because they represent already-verified
-   * historical cases.
-   *
-   * Consequence worth knowing: because the Search screen defaults to "Show
-   * verified cases only", a fresh report will not appear in the default results.
-   * That is correct — it keeps unconfirmed claims out of the statistics people
-   * rely on — and turning the switch off reveals it.
+   * Replace the remote-report portion of the store with a complete server
+   * response. The 5,000 bundled seed rows are never overwritten. This is
+   * idempotent, so reopening Expo or retrying a fetch cannot create duplicates.
    */
-  addReport(input: {
-    dateReported: string;
-    scamType: string;
-    town: string;
-    description: string;
-  }): ScamRecord {
-    const keywords = extractKeywords(input.description);
-    const rec: ScamRecord = {
-      id: `user-report-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      dateReported: input.dateReported,
-      scamType: input.scamType,
-      keywords,
-      town: input.town,
-      specificPlace: input.town,
-      source: 'user-report',
-      // Pending police investigation. Never true at creation time.
-      verified: false,
-      year: parseInt(input.dateReported.slice(0, 4), 10),
-    };
-    records = [rec, ...records];
+  hydrateReports(serverReports: readonly ScamRecord[]): void {
+    const reports = new Map<string, ScamRecord>();
+    for (const candidate of serverReports) {
+      const report = normaliseServerReport(candidate);
+      // A server report must never impersonate or replace a bundled record.
+      if (report && !seedIds.has(report.id)) reports.set(report.id, report);
+    }
+    records = [...reports.values(), ...seedRecords];
     notify();
-    return rec;
+  },
+
+  /**
+   * Merge the POST response immediately, before the next app-start GET. A
+   * stable server ID makes this safe to repeat when hydration later arrives.
+   */
+  upsertReport(candidate: ScamRecord): boolean {
+    const report = normaliseServerReport(candidate);
+    if (!report || seedIds.has(report.id)) return false;
+
+    const otherReports = records.filter(
+      (record) => !seedIds.has(record.id) && record.id !== report.id
+    );
+    records = [report, ...otherReports, ...seedRecords];
+    notify();
+    return true;
   },
 
   subscribe(listener: Listener): () => void {
@@ -70,10 +66,35 @@ export const scamStore = {
 
   /** Reset to the seeded dataset (used by tests). */
   _reset(): void {
-    records = (raw as ScamRecord[]).slice();
+    records = seedRecords.slice();
     notify();
   },
 };
+
+/** Reject malformed or untrusted network data before it enters search/stats. */
+function normaliseServerReport(value: ScamRecord): ScamRecord | undefined {
+  if (
+    !value ||
+    typeof value.id !== 'string' ||
+    typeof value.dateReported !== 'string' ||
+    typeof value.scamType !== 'string' ||
+    !Array.isArray(value.keywords) ||
+    !value.keywords.every((keyword) => typeof keyword === 'string') ||
+    typeof value.town !== 'string' ||
+    typeof value.specificPlace !== 'string' ||
+    value.source !== 'user-report' ||
+    value.verified !== false ||
+    !Number.isInteger(value.year)
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...value,
+    // Copy the array so a caller cannot mutate the store through its response.
+    keywords: value.keywords.slice(),
+  };
+}
 
 /** Naive keyword extraction from free text for report enrichment. */
 export function extractKeywords(text: string): string[] {

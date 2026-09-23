@@ -15,13 +15,16 @@ export interface AnalysisSignals {
   durationSeconds?: number;
   /** Set when a video had no detectable speech. */
   noSpeechDetected?: boolean;
+  /** Why ScamNoMore intentionally withheld a scam probability. */
+  unableToAssessReason?: 'no-speech' | 'invalid-model-probability' | 'insufficient-evidence';
 }
 
 /**
- * Canonical analysis result returned by every analyzer endpoint. Matches the
- * app-side `AnalysisResult` so responses render without transformation.
+ * A result based on usable evidence. It is deliberately distinct from an
+ * inconclusive result: a failed score must never look like a 0% safe verdict.
  */
-export interface AnalysisResult {
+export interface AssessedAnalysisResult {
+  assessmentStatus: 'assessed';
   probability: number; // 0..1
   riskLevel: RiskLevel;
   scamType?: string;
@@ -30,6 +33,19 @@ export interface AnalysisResult {
   advice: string;
   signals?: AnalysisSignals;
 }
+
+/** Honest result when the evidence or model response cannot safely be scored. */
+export interface UnableToAssessResult {
+  assessmentStatus: 'unable_to_assess';
+  scamType?: never;
+  reasons: string[];
+  detectedText?: string;
+  advice: string;
+  signals?: AnalysisSignals;
+}
+
+/** Canonical analysis result returned by every analyzer endpoint. */
+export type AnalysisResult = AssessedAnalysisResult | UnableToAssessResult;
 
 export const SCAM_TYPES = [
   'Phishing Scam',

@@ -20,13 +20,16 @@ export interface AnalysisSignals {
   durationSeconds?: number;
   /** Set when a video's audio track contained no speech. */
   noSpeechDetected?: boolean;
+  /** Why the app deliberately withheld a scam probability. */
+  unableToAssessReason?: 'no-speech' | 'invalid-model-probability' | 'insufficient-evidence';
 }
 
 /**
- * Canonical analysis result returned by the backend. Mirrors
- * backend/src/lib/types.ts so responses render without transformation.
+ * Evidence-based result returned by the backend. It is distinct from an
+ * inconclusive result so a failed score can never render as a green 0% gauge.
  */
-export interface AnalysisResult {
+export interface AssessedAnalysisResult {
+  assessmentStatus: 'assessed';
   probability: number; // 0..1
   riskLevel: RiskLevel;
   scamType?: string;
@@ -41,6 +44,42 @@ export interface AnalysisResult {
    * screen.
    */
   language?: string;
+}
+
+/** Honest outcome when there is not enough reliable evidence to score. */
+export interface UnableToAssessResult {
+  assessmentStatus: 'unable_to_assess';
+  scamType?: never;
+  reasons: string[];
+  advice: string;
+  detectedText?: string;
+  signals?: AnalysisSignals;
+  language?: string;
+}
+
+/** Canonical analysis result returned by the backend. */
+export type AnalysisResult = AssessedAnalysisResult | UnableToAssessResult;
+
+/** Use this guard before rendering a probability, risk band, or gauge. */
+export function isAssessed(result: AnalysisResult): result is AssessedAnalysisResult {
+  return result.assessmentStatus === 'assessed';
+}
+
+/** Build a scoreless result for evidence that cannot safely be assessed. */
+export function unableToAssessResult(
+  source: AnalysisSignals['source'],
+  reason: NonNullable<AnalysisSignals['unableToAssessReason']>
+): UnableToAssessResult {
+  return {
+    assessmentStatus: 'unable_to_assess',
+    reasons: [],
+    advice: '',
+    signals: {
+      source,
+      ...(reason === 'no-speech' ? { noSpeechDetected: true } : {}),
+      unableToAssessReason: reason,
+    },
+  };
 }
 
 /**

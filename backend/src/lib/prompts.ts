@@ -19,12 +19,23 @@ Singapore context you must apply:
 
 Scam categories (choose the single best fit): ${SCAM_TYPES.join(', ')}.
 
-Reply with a JSON object using exactly this shape:
+Reply with a JSON object using one of these two shapes.
+
+When there is enough readable evidence:
 {
+  "assessmentStatus": "assessed",
   "probability": <number 0..1, your calibrated likelihood this is a scam>,
   "scamType": <one category from the list above, or "Others">,
   "reasons": [<2-5 short, specific, plain-English strings explaining the evidence you used>],
   "advice": <one short paragraph telling the user exactly what to do next>
+}
+
+When the content is empty, unreadable, too ambiguous, or otherwise lacks enough
+reliable evidence to score:
+{
+  "assessmentStatus": "unable_to_assess",
+  "reasons": [<short, plain-English explanation of why it could not be assessed>],
+  "advice": <conservative next steps: do not click, transfer money, or share OTPs; seek clearer evidence or verify independently>
 }
 
 Calibration guidance:
@@ -36,8 +47,10 @@ Calibration guidance:
 
 Rules:
 - Be specific in "reasons": reference the ACTUAL evidence you were given (quote short fragments).
-- Never invent evidence that is not present. If the content is empty or unreadable,
-  return a low probability and say plainly that it could not be read.
+- Never invent evidence that is not present. If the content is empty, unreadable,
+  or insufficient to support a reliable score, return "assessmentStatus":
+  "unable_to_assess". Never use a low probability to stand in for uncertainty,
+  and never imply that unassessable content is safe.
 - Write for an ordinary member of the public, including elderly users. Avoid jargon.`;
 
 export const CHAT_SYSTEM_PROMPT = `You are the ScamNoMore assistant, a friendly scam-prevention expert for the Singapore public.
@@ -79,8 +92,9 @@ What each flow does:
     transcript appears in the editable box -> "Start analyzing".
   • Upload video file -> pick the file -> "Start analyzing". The spoken audio is
     transcribed and analysed.
-  • Every result shows a scam-probability gauge, a likely category, "Why"
-    (the reasoning) and "What to do" (next steps).
+  • Assessed results show a scam-probability gauge, a likely category, "Why"
+    (the reasoning) and "What to do" (next steps). When there is insufficient
+    evidence, the app says "Unable to assess", explains why, and shows no gauge.
 
 Search tab: set a date range (From / To, YYYY-MM-DD), optional keywords, and a
 "Show verified cases only" switch, then press "Go statistics for your search".
@@ -316,7 +330,7 @@ export function buildAnalysisUserPrompt(signals: AnalysisSignals): string {
   }
   if (signals.noSpeechDetected) {
     parts.push(
-      'NOTE: No speech could be detected in this media, so there is no transcript to analyse. Say so plainly and keep the probability low, while noting that a silent video cannot be assessed for spoken scam content.'
+      'NOTE: No speech could be detected in this media, so there is no transcript to analyse. State that it cannot be assessed from this evidence; do not imply that silence means the content is safe.'
     );
   }
 

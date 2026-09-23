@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useI18n } from '../i18n';
 import { useDomain } from '../i18n/useDomain';
-import { AnalysisResult, riskLabelKey } from '../services/analysis';
+import { AnalysisResult, isAssessed, riskLabelKey } from '../services/analysis';
 import { colors, spacing } from '../theme';
 import { RiskGauge } from './RiskGauge';
 import { SpeakButton } from './SpeakButton';
@@ -21,41 +21,54 @@ import { useTranslatedAnalysis } from './useTranslatedAnalysis';
  *    here via the domain tables, so the category never depends on the model
  *    getting the target language right.
  *
- * The no-speech case is special: the backend produces it WITHOUT calling the
- * model, so its English text is replaced with localized copy here.
+ * An inconclusive result is special: it has no probability or gauge, and tells
+ * the user why the evidence could not be assessed safely.
  */
 export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ result }) => {
   const { t } = useI18n();
   const domain = useDomain();
   const [speechNotice, setSpeechNotice] = useState<string | null>(null);
 
-  const noSpeech = result.signals?.noSpeechDetected === true;
+  const assessed = isAssessed(result);
+  const unableReason = result.signals?.unableToAssessReason;
+  const noSpeech = unableReason === 'no-speech';
+  const insufficientEvidence = unableReason === 'insufficient-evidence';
   const source = result.signals?.source;
 
   // Re-translates the model's prose when the user switches language, so the
   // findings never sit in a different language from the headings above them.
   const translated = useTranslatedAnalysis(result);
 
-  const reasons = noSpeech
+  const reasons = !assessed
     ? [
-        t('analyze.noSpeech.reason'),
-        source === 'video' ? t('analyze.noSpeech.video') : t('analyze.noSpeech.voice'),
+        noSpeech
+          ? t('analyze.noSpeech.reason')
+          : insufficientEvidence
+            ? t('analyze.unable.insufficientReason')
+            : t('analyze.unable.invalidReason'),
+        noSpeech
+          ? source === 'video'
+            ? t('analyze.noSpeech.video')
+            : t('analyze.noSpeech.voice')
+          : t('analyze.unable.notSafe'),
       ]
     : translated.reasons;
 
-  const advice = noSpeech
-    ? source === 'video'
-      ? t('analyze.noSpeech.adviceVideo')
-      : t('analyze.noSpeech.adviceVoice')
+  const advice = !assessed
+    ? noSpeech
+      ? source === 'video'
+        ? t('analyze.noSpeech.adviceVideo')
+        : t('analyze.noSpeech.adviceVoice')
+      : t('analyze.unable.advice')
     : translated.advice;
 
-  const label = t(riskLabelKey(result.probability));
-  const pct = Math.round(Math.min(1, Math.max(0, result.probability)) * 100);
+  const label = assessed ? t(riskLabelKey(result.probability)) : t('analyze.unable.title');
+  const pct = assessed ? Math.round(Math.min(1, Math.max(0, result.probability)) * 100) : undefined;
 
   // Read aloud: the verdict first (the single most important line for someone
   // who cannot read it), then the reasoning and the advice.
   const spokenPassages = [
-    `${label}. ${pct}% ${t('analyze.probability')}.`,
+    assessed ? `${label}. ${pct}% ${t('analyze.probability')}.` : label,
     `${t('analyze.why')}.`,
     ...reasons,
     `${t('analyze.whatToDo')}.`,
@@ -69,13 +82,20 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
         <SpeakButton passages={spokenPassages} onUnavailable={setSpeechNotice} />
       </View>
       {speechNotice ? <Muted style={styles.notice}>{speechNotice}</Muted> : null}
-      <RiskGauge
-        probability={result.probability}
-        level={result.riskLevel}
-        label={label}
-        a11yLabel={`${label}. ${pct}% ${t('analyze.probability')}.`}
-      />
-      {result.scamType ? (
+      {assessed ? (
+        <RiskGauge
+          probability={result.probability}
+          level={result.riskLevel}
+          label={label}
+          a11yLabel={`${label}. ${pct}% ${t('analyze.probability')}.`}
+        />
+      ) : (
+        <View style={styles.unableBox}>
+          <SubHeading>{label}</SubHeading>
+          <Muted>{t('analyze.unable.notSafe')}</Muted>
+        </View>
+      )}
+      {assessed && result.scamType ? (
         <Muted>
           {t('analyze.likelyCategory')}: {domain.scamType(result.scamType)}
         </Muted>
@@ -107,4 +127,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   notice: { color: colors.medium },
+  unableBox: {
+    backgroundColor: '#3B2A12',
+    borderColor: colors.medium,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: spacing.md,
+    gap: spacing.xs,
+  },
 });

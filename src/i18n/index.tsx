@@ -88,6 +88,20 @@ const en = {
     'Try a clip that contains speech, or screenshot the video and use the image check instead. If unsure about an offer, call 1799.',
   'analyze.noSpeech.adviceVoice':
     'Please record again and speak clearly, or type what happened instead. If unsure, call 1799.',
+  'analyze.unable.title': 'Unable to assess',
+  'analyze.unable.invalidReason':
+    'The AI response did not include a usable scam probability, so ScamNoMore cannot assess this safely.',
+  'analyze.unable.insufficientReason':
+    'The available image, audio, or text was too unclear or limited for a reliable assessment.',
+  'analyze.unable.notSafe': 'This is not evidence of safety; there is simply no reliable score to show.',
+  'analyze.unable.advice':
+    'Do not click links, transfer money, or share OTPs. Try again with clearer evidence, and call 1799 if you are unsure.',
+  'analyze.privacy.title': 'Privacy before upload',
+  'analyze.privacy.body':
+    'Your selected media and any transcript are sent over HTTPS to ScamNoMore’s server and OpenAI for processing. ScamNoMore does not intentionally save the media after processing, but OpenAI processes it under its own data policies.',
+  'analyze.privacy.redact':
+    'Please crop or redact OTPs, NRIC numbers, passwords, Singpass details, full card numbers, and other personal information before continuing.',
+  'analyze.privacy.continue': 'I understand and continue',
 
   'risk.safe': 'Very low risk',
   'risk.low': 'Low risk',
@@ -157,7 +171,14 @@ const en = {
   'community.exit': 'Exit chat room',
   'community.youAreIn': 'You are in',
   'community.roomSuffix': 'chat room',
-  'community.liveSession': 'Live chat session',
+  'community.liveSession': 'Shared community discussion',
+  'community.publicNotice':
+    'Messages are visible to other ScamNoMore users. Do not post names, phone numbers, OTPs, bank details, or other personal information.',
+  'community.noMessages': 'No messages yet. Start the discussion carefully.',
+  'community.loading': 'Loading messages…',
+  'community.refresh': 'Refresh messages',
+  'community.loadEarlier': 'Load earlier messages',
+  'community.member': 'Community member',
   'community.etiquette': 'Please maintain basic chat etiquette. Thanks.',
   'community.typeMessage': 'Type a message…',
   'community.send': 'Send',
@@ -258,6 +279,20 @@ const zh: Dict = {
     '请改用含语音的片段，或将视频截图后使用图片检查。若对某项优惠有疑虑，请致电 1799。',
   'analyze.noSpeech.adviceVoice':
     '请重新录音并清楚说话，或改为输入文字说明经过。如有疑虑，请致电 1799。',
+  'analyze.unable.title': '无法评估',
+  'analyze.unable.invalidReason':
+    'AI 回应未包含可用的诈骗概率，因此 ScamNoMore 无法安全评估此内容。',
+  'analyze.unable.insufficientReason':
+    '现有图像、音频或文字过于模糊或有限，无法作出可靠评估。',
+  'analyze.unable.notSafe': '这并不表示安全；只是没有可靠评分可显示。',
+  'analyze.unable.advice':
+    '请勿点击链接、转账或透露一次性密码。请以更清晰的证据重试；如有疑虑，请致电 1799。',
+  'analyze.privacy.title': '上传前的隐私说明',
+  'analyze.privacy.body':
+    '您选择的媒体和任何转写文字会通过 HTTPS 发送到 ScamNoMore 服务器和 OpenAI 进行处理。ScamNoMore 不会在处理后主动保存媒体，但 OpenAI 会依照其自身的数据政策处理资料。',
+  'analyze.privacy.redact':
+    '继续前，请裁剪或遮盖 OTP、身份证号码、密码、Singpass 资料、完整卡号及其他个人资料。',
+  'analyze.privacy.continue': '我了解并继续',
 
   'risk.safe': '风险极低',
   'risk.low': '风险较低',
@@ -322,7 +357,13 @@ const zh: Dict = {
   'community.exit': '退出聊天室',
   'community.youAreIn': '您目前在',
   'community.roomSuffix': '聊天室',
-  'community.liveSession': '实时聊天',
+  'community.liveSession': '共享社区讨论',
+  'community.publicNotice': '信息会显示给其他 ScamNoMore 用户。请勿发布姓名、电话号码、OTP、银行资料或其他个人资料。',
+  'community.noMessages': '还没有信息。请谨慎地开始讨论。',
+  'community.loading': '正在加载信息…',
+  'community.refresh': '刷新信息',
+  'community.loadEarlier': '加载更早的信息',
+  'community.member': '社区成员',
   'community.etiquette': '请保持基本的聊天礼仪，谢谢。',
   'community.typeMessage': '输入信息…',
   'community.send': '发送',
@@ -418,6 +459,20 @@ const ms: Dict = {
     'Cuba klip yang mengandungi pertuturan, atau tangkap skrin video itu dan guna pemeriksaan imej. Jika tidak pasti tentang sesuatu tawaran, hubungi 1799.',
   'analyze.noSpeech.adviceVoice':
     'Sila rakam semula dan bercakap dengan jelas, atau taip apa yang berlaku. Jika tidak pasti, hubungi 1799.',
+  'analyze.unable.title': 'Tidak dapat dinilai',
+  'analyze.unable.invalidReason':
+    'Respons AI tidak mengandungi kebarangkalian penipuan yang boleh digunakan, jadi ScamNoMore tidak dapat menilainya dengan selamat.',
+  'analyze.unable.insufficientReason':
+    'Imej, audio atau teks yang tersedia terlalu tidak jelas atau terhad untuk penilaian yang boleh dipercayai.',
+  'analyze.unable.notSafe': 'Ini bukan bukti bahawa ia selamat; cuma tiada skor yang boleh dipercayai untuk dipaparkan.',
+  'analyze.unable.advice':
+    'Jangan klik pautan, pindahkan wang atau kongsi OTP. Cuba lagi dengan bukti yang lebih jelas, dan hubungi 1799 jika anda tidak pasti.',
+  'analyze.privacy.title': 'Privasi sebelum muat naik',
+  'analyze.privacy.body':
+    'Media yang dipilih dan sebarang transkrip dihantar melalui HTTPS ke pelayan ScamNoMore dan OpenAI untuk diproses. ScamNoMore tidak menyimpan media dengan sengaja selepas pemprosesan, tetapi OpenAI memprosesnya mengikut dasar datanya sendiri.',
+  'analyze.privacy.redact':
+    'Sila potong atau tutup OTP, nombor NRIC, kata laluan, butiran Singpass, nombor kad penuh dan maklumat peribadi lain sebelum meneruskan.',
+  'analyze.privacy.continue': 'Saya faham dan teruskan',
 
   'risk.safe': 'Risiko sangat rendah',
   'risk.low': 'Risiko rendah',
@@ -484,7 +539,14 @@ const ms: Dict = {
   'community.exit': 'Keluar bilik sembang',
   'community.youAreIn': 'Anda berada dalam',
   'community.roomSuffix': 'bilik sembang',
-  'community.liveSession': 'Sesi sembang langsung',
+  'community.liveSession': 'Perbincangan komuniti dikongsi',
+  'community.publicNotice':
+    'Mesej boleh dilihat oleh pengguna ScamNoMore yang lain. Jangan siarkan nama, nombor telefon, OTP, butiran bank atau maklumat peribadi lain.',
+  'community.noMessages': 'Belum ada mesej. Mulakan perbincangan dengan berhati-hati.',
+  'community.loading': 'Memuatkan mesej…',
+  'community.refresh': 'Muat semula mesej',
+  'community.loadEarlier': 'Muat mesej terdahulu',
+  'community.member': 'Ahli komuniti',
   'community.etiquette': 'Sila jaga etika sembang asas. Terima kasih.',
   'community.typeMessage': 'Taip mesej…',
   'community.send': 'Hantar',
@@ -587,6 +649,20 @@ const ta: Dict = {
     'பேச்சு உள்ள பகுதியை முயற்சிக்கவும், அல்லது வீடியோவை ஸ்கிரீன்ஷாட் எடுத்து படச் சோதனையைப் பயன்படுத்தவும். ஏதேனும் சந்தேகம் இருந்தால் 1799 என்ற எண்ணை அழைக்கவும்.',
   'analyze.noSpeech.adviceVoice':
     'மீண்டும் தெளிவாகப் பேசி பதிவு செய்யவும், அல்லது நடந்ததை தட்டச்சு செய்யவும். சந்தேகம் இருந்தால் 1799 என்ற எண்ணை அழைக்கவும்.',
+  'analyze.unable.title': 'மதிப்பிட முடியவில்லை',
+  'analyze.unable.invalidReason':
+    'AI பதிலில் பயன்படுத்தக்கூடிய மோசடி நிகழ்தகவு இல்லை; ஆகவே ScamNoMore இதை பாதுகாப்பாக மதிப்பிட முடியவில்லை.',
+  'analyze.unable.insufficientReason':
+    'கிடைத்த படம், ஒலி அல்லது உரை தெளிவற்றதாக அல்லது மிகவும் குறைவாக இருப்பதால் நம்பகமாக மதிப்பிட முடியவில்லை.',
+  'analyze.unable.notSafe': 'இது பாதுகாப்பானது என்பதற்கான ஆதாரம் அல்ல; காட்ட நம்பகமான மதிப்பெண் இல்லை.',
+  'analyze.unable.advice':
+    'இணைப்புகளை அழுத்தாதீர்கள், பணம் அனுப்பாதீர்கள் அல்லது OTP-ஐ பகிராதீர்கள். தெளிவான ஆதாரத்துடன் மீண்டும் முயற்சிக்கவும்; சந்தேகம் இருந்தால் 1799 என்ற எண்ணை அழைக்கவும்.',
+  'analyze.privacy.title': 'பதிவேற்றுவதற்கு முன் தனியுரிமை',
+  'analyze.privacy.body':
+    'நீங்கள் தேர்ந்தெடுத்த ஊடகமும் உரைமாற்றமும் HTTPS வழியாக செயலாக்கத்திற்காக ScamNoMore சேவையகத்திற்கும் OpenAI-க்கும் அனுப்பப்படும். செயலாக்கத்திற்குப் பிறகு ScamNoMore ஊடகத்தை சேமிப்பதில்லை; ஆனால் OpenAI அதன் சொந்த தரவுக் கொள்கைகளின் கீழ் அதை செயலாக்குகிறது.',
+  'analyze.privacy.redact':
+    'தொடர்வதற்கு முன் OTP, NRIC எண்கள், கடவுச்சொற்கள், Singpass விவரங்கள், முழு அட்டை எண்கள் மற்றும் பிற தனிப்பட்ட தகவல்களை வெட்டவும் அல்லது மறைக்கவும்.',
+  'analyze.privacy.continue': 'நான் புரிந்துகொண்டு தொடர்கிறேன்',
 
   'risk.safe': 'மிகக் குறைந்த ஆபத்து',
   'risk.low': 'குறைந்த ஆபத்து',
@@ -653,7 +729,14 @@ const ta: Dict = {
   'community.exit': 'அறையிலிருந்து வெளியேறு',
   'community.youAreIn': 'நீங்கள் இருக்கும் இடம்',
   'community.roomSuffix': 'அரட்டை அறை',
-  'community.liveSession': 'நேரடி அரட்டை அமர்வு',
+  'community.liveSession': 'பகிரப்பட்ட சமூக கலந்துரையாடல்',
+  'community.publicNotice':
+    'செய்திகள் மற்ற ScamNoMore பயனர்களுக்குத் தெரியும். பெயர்கள், தொலைபேசி எண்கள், OTP, வங்கி விவரங்கள் அல்லது பிற தனிப்பட்ட தகவல்களை இட வேண்டாம்.',
+  'community.noMessages': 'இன்னும் செய்திகள் இல்லை. கவனமாக கலந்துரையாடலைத் தொடங்குங்கள்.',
+  'community.loading': 'செய்திகள் ஏற்றப்படுகின்றன…',
+  'community.refresh': 'செய்திகளைப் புதுப்பிக்கவும்',
+  'community.loadEarlier': 'முந்தைய செய்திகளை ஏற்றவும்',
+  'community.member': 'சமூக உறுப்பினர்',
   'community.etiquette': 'அடிப்படை அரட்டை பண்பை கடைப்பிடிக்கவும். நன்றி.',
   'community.typeMessage': 'செய்தியை தட்டச்சு செய்யவும்…',
   'community.send': 'அனுப்பு',

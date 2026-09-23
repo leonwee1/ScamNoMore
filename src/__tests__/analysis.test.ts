@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { riskFromProbability, riskLabelKey } from '../services/analysis';
-import { BackendNotConfiguredError, contentTypeFor } from '../services/api';
+import { isAssessed, riskFromProbability, riskLabelKey } from '../services/analysis';
+import { BackendNotConfiguredError, contentTypeFor, normaliseAnalysisResult } from '../services/api';
 import { _dicts } from '../i18n';
 
 describe('riskFromProbability', () => {
@@ -45,6 +45,7 @@ describe('contentTypeFor', () => {
   it('detects image types from the extension', () => {
     expect(contentTypeFor('file:///photo.jpg', 'image')).toBe('image/jpeg');
     expect(contentTypeFor('file:///shot.PNG', 'image')).toBe('image/png');
+    expect(contentTypeFor('file:///animation.gif', 'image')).toBe('image/gif');
     expect(contentTypeFor('file:///pic.heic', 'image')).toBe('image/heic');
   });
 
@@ -66,6 +67,61 @@ describe('contentTypeFor', () => {
 
   it('ignores query strings', () => {
     expect(contentTypeFor('file:///photo.png?t=123', 'image')).toBe('image/png');
+  });
+});
+
+describe('analysis response safety', () => {
+  it('keeps a valid model probability as an assessed result', () => {
+    const result = normaliseAnalysisResult({
+      probability: 0.72,
+      riskLevel: 'safe', // ignored; the client derives it from probability
+      reasons: ['Urgency and an unfamiliar payment link.'],
+      advice: 'Do not pay.',
+      signals: { source: 'image' },
+    });
+    expect(isAssessed(result)).toBe(true);
+    if (isAssessed(result)) {
+      expect(result.probability).toBe(0.72);
+      expect(result.riskLevel).toBe('high');
+    }
+  });
+
+  it('never turns a missing or invalid probability into a green gauge', () => {
+    for (const probability of [undefined, -1, Number.NaN, 101]) {
+      const result = normaliseAnalysisResult({ probability, signals: { source: 'text' } });
+      expect(isAssessed(result)).toBe(false);
+      expect('probability' in result).toBe(false);
+      expect('riskLevel' in result).toBe(false);
+    }
+  });
+
+  it('upgrades the legacy silent-media safe response to unable to assess', () => {
+    const result = normaliseAnalysisResult({
+      probability: 0,
+      riskLevel: 'safe',
+      signals: { source: 'video', noSpeechDetected: true },
+    });
+    expect(isAssessed(result)).toBe(false);
+    expect(result.signals?.unableToAssessReason).toBe('no-speech');
+  });
+
+  it('preserves an explicit invalid-model-probability reason', () => {
+    const result = normaliseAnalysisResult({
+      assessmentStatus: 'unable_to_assess',
+      signals: { source: 'image', unableToAssessReason: 'invalid-model-probability' },
+    });
+    expect(isAssessed(result)).toBe(false);
+    expect(result.signals?.unableToAssessReason).toBe('invalid-model-probability');
+  });
+
+  it('keeps explicit insufficient evidence scoreless', () => {
+    const result = normaliseAnalysisResult({
+      assessmentStatus: 'unable_to_assess',
+      signals: { source: 'image', unableToAssessReason: 'insufficient-evidence' },
+    });
+    expect(isAssessed(result)).toBe(false);
+    expect(result.signals?.unableToAssessReason).toBe('insufficient-evidence');
+    expect('probability' in result).toBe(false);
   });
 });
 

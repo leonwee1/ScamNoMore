@@ -2,7 +2,9 @@
  * In-memory rate limiting — two layers that protect your OpenAI bill:
  *
  *   1. BURST  : per-client requests in a short sliding window (stops hammering).
- *   2. DAILY  : total requests per client per day (caps worst-case spend).
+ *   2. DAILY  : total requests per client per day.
+ *   3. GLOBAL : an absolute service-wide cap, so a caller cannot evade the
+ *               per-client bucket by presenting invented forwarded-IP values.
  *
  * In-memory state is fine for a single Render instance. If you ever scale to
  * multiple instances, move these counters to Redis — each instance would
@@ -26,6 +28,8 @@ function limits() {
     burstMax: num('RATE_LIMIT_BURST_MAX', 15),
     burstWindowMs: num('RATE_LIMIT_BURST_WINDOW_MS', 60_000),
     dailyMax: num('RATE_LIMIT_DAILY_MAX', 200),
+    globalBurstMax: num('RATE_LIMIT_GLOBAL_BURST_MAX', 60),
+    globalDailyMax: num('RATE_LIMIT_GLOBAL_DAILY_MAX', 250),
   };
 }
 
@@ -38,6 +42,7 @@ interface Bucket {
 }
 
 const buckets = new Map<string, Bucket>();
+let globalBucket: Bucket | undefined;
 
 /** Drop idle clients so the map cannot grow without bound. */
 function prune(now: number): void {
@@ -112,20 +117,56 @@ export function checkRateLimit(clientId: string, now = Date.now()): RateLimitRes
 }
 
 /**
- * Derive a client id from request headers. Render (like most proxies) puts the
- * real client IP first in x-forwarded-for, so prefer that over the socket
- * address, which would otherwise be the proxy for every caller.
+ * Service-wide ceiling. Keep this independent of the client identifier: a
+ * public app bundle can reveal its shared secret and callers can forge ordinary
+ * forwarding headers, but neither lets them create more global allowance.
+ */
+export function checkGlobalRateLimit(now = Date.now()): RateLimitResult {
+  const { globalBurstMax: BURST_MAX, burstWindowMs: BURST_WINDOW_MS, globalDailyMax: DAILY_MAX } = limits();
+
+  if (!globalBucket) globalBucket = { recent: [], dayCount: 0, dayStart: now };
+
+  if (now - globalBucket.dayStart >= DAY_MS) {
+    globalBucket.dayStart = now;
+    globalBucket.dayCount = 0;
+  }
+
+  if (globalBucket.dayCount >= DAILY_MAX) {
+    const retryAfter = Math.ceil((globalBucket.dayStart + DAY_MS - now) / 1000);
+    return {
+      allowed: false,
+      retryAfter,
+      reason: `Service daily limit of ${DAILY_MAX} requests reached. Try again later.`,
+    };
+  }
+
+  globalBucket.recent = globalBucket.recent.filter((t) => now - t < BURST_WINDOW_MS);
+  if (globalBucket.recent.length >= BURST_MAX) {
+    const oldest = globalBucket.recent[0];
+    const retryAfter = Math.max(1, Math.ceil((oldest + BURST_WINDOW_MS - now) / 1000));
+    return {
+      allowed: false,
+      retryAfter,
+      reason: `Service is busy. Please wait ${retryAfter}s.`,
+    };
+  }
+
+  globalBucket.recent.push(now);
+  globalBucket.dayCount += 1;
+  return { allowed: true, remaining: Math.max(0, BURST_MAX - globalBucket.recent.length) };
+}
+
+/**
+ * Derive a client id from the direct socket peer. Do not trust X-Forwarded-For:
+ * a public client can supply that ordinary header itself. On Render the peer is
+ * commonly the edge proxy, which merely makes the per-client bucket more
+ * conservative; the separate global cap remains the actual bill guard.
  */
 export function clientIdFrom(
   headers: Record<string, string | string[] | undefined>,
   socketAddress?: string
 ): string {
-  const fwd = headers['x-forwarded-for'];
-  const raw = Array.isArray(fwd) ? fwd[0] : fwd;
-  if (raw) {
-    const first = raw.split(',')[0]?.trim();
-    if (first) return first;
-  }
+  void headers;
   return socketAddress ?? 'unknown';
 }
 
@@ -137,4 +178,5 @@ export function rateLimitConfig() {
 /** Clear all counters (tests only). */
 export function _resetRateLimits(): void {
   buckets.clear();
+  globalBucket = undefined;
 }

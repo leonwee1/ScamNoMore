@@ -6,6 +6,7 @@ import {
   searchScams,
   towns,
 } from '../data/scamStore';
+import type { ScamRecord } from '../data/types';
 
 afterEach(() => scamStore._reset());
 
@@ -69,15 +70,24 @@ describe('computeStats', () => {
   });
 });
 
-describe('addReport (shared table)', () => {
-  it('appends a report into the same dataset', () => {
+const serverReport = (overrides: Partial<ScamRecord> = {}): ScamRecord => ({
+  id: 'user-report-test-1',
+  dateReported: '2026-01-15',
+  scamType: 'Phishing Scam',
+  keywords: ['fake', 'bank', 'urgent', 'transfer'],
+  town: 'Tampines',
+  specificPlace: 'Tampines',
+  source: 'user-report',
+  verified: false,
+  year: 2026,
+  ...overrides,
+});
+
+describe('shared persisted reports', () => {
+  it('hydrates a server report into the same dataset', () => {
     const before = scamStore.count();
-    const rec = scamStore.addReport({
-      dateReported: '2026-01-15',
-      scamType: 'Phishing Scam',
-      town: 'Tampines',
-      description: 'Received a fake DBS SMS asking for my OTP and password urgently.',
-    });
+    const rec = serverReport();
+    scamStore.hydrateReports([rec]);
     expect(scamStore.count()).toBe(before + 1);
     expect(rec.keywords.length).toBeGreaterThan(0);
     // The new report is discoverable via search on the shared dataset.
@@ -85,30 +95,39 @@ describe('addReport (shared table)', () => {
     expect(found.some((r) => r.id === rec.id)).toBe(true);
   });
 
-  it('marks a new report unverified, pending investigation', () => {
-    const rec = scamStore.addReport({
-      dateReported: '2026-01-15',
-      scamType: 'Phishing Scam',
-      town: 'Tampines',
-      description: 'Received a fake DBS SMS asking for my OTP and password urgently.',
-    });
-    // A public report is an allegation until the police confirm it. Only then
-    // would the Verified column be flipped to Yes.
-    expect(rec.verified).toBe(false);
+  it('does not duplicate a POST response when startup hydration follows it', () => {
+    const rec = serverReport();
+    scamStore.upsertReport(rec);
+    scamStore.hydrateReports([rec]);
+    expect(scamStore.all().filter((row) => row.id === rec.id)).toHaveLength(1);
+  });
+
+  it('replaces an existing report with the same stable server ID', () => {
+    const rec = serverReport();
+    scamStore.upsertReport(rec);
+    scamStore.upsertReport({ ...rec, keywords: ['updated'] });
+    const rows = scamStore.all().filter((row) => row.id === rec.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].keywords).toEqual(['updated']);
   });
 
   it('hides unverified reports from verified-only searches', () => {
-    const rec = scamStore.addReport({
-      dateReported: '2026-01-15',
-      scamType: 'Phishing Scam',
-      town: 'Tampines',
-      description: 'Fake bank SMS demanding an urgent transfer to a new account.',
-    });
+    const rec = serverReport();
+    scamStore.hydrateReports([rec]);
     const verified = searchScams({ verifiedOnly: true, town: 'Tampines' });
     expect(verified.some((r) => r.id === rec.id)).toBe(false);
 
     const everything = searchScams({ verifiedOnly: false, town: 'Tampines' });
     expect(everything.some((r) => r.id === rec.id)).toBe(true);
+  });
+
+  it('does not let a remote row replace a bundled seed record', () => {
+    const seed = scamStore.all()[0];
+    scamStore.hydrateReports([
+      { ...seed, source: 'user-report', verified: false },
+    ]);
+    expect(scamStore.count()).toBe(5000);
+    expect(scamStore.all().find((row) => row.id === seed.id)?.verified).toBe(seed.verified);
   });
 });
 

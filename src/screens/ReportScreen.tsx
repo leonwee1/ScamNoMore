@@ -11,6 +11,7 @@ import { useI18n } from '../i18n';
 import { useDomain } from '../i18n/useDomain';
 import { DatePicker } from '../components/DatePicker';
 import { deviceToday, monthsAgo } from '../services/dates';
+import { api } from '../services/api';
 import { colors, font, radius, spacing } from '../theme';
 
 const MAX_WORDS = 200;
@@ -18,9 +19,8 @@ const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
 
 /**
  * Report screen (wireframe): mandatory date (default today), 200-word incident
- * description, town + scam-type dropdowns. On submit it appends to the SAME
- * dataset as the 5000 mockup rows (scamStore.addReport), then shows the
- * thank-you + comforting message with the 1799 helpline.
+ * description, town + scam-type dropdowns. On submit it persists an unverified
+ * row through the shared backend, then shows the thank-you + 1799 helpline.
  */
 export const ReportScreen: React.FC = () => {
   const { t } = useI18n();
@@ -33,6 +33,8 @@ export const ReportScreen: React.FC = () => {
   const [town, setTown] = useState<string | undefined>();
   const [scamType, setScamType] = useState<string | undefined>();
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   // The empty value is the "nothing chosen yet" placeholder. Both fields are
@@ -73,22 +75,38 @@ export const ReportScreen: React.FC = () => {
    * user is already where they would want to be next, and can simply leave via
    * the tab bar if they are done.
    */
-  const submit = () => {
-    if (!valid || !town || !scamType) return;
-    scamStore.addReport({ dateReported: date, scamType, town, description });
-    setDate(deviceToday());
-    setDescription('');
-    setTown(undefined);
-    setScamType(undefined);
-    setSubmitted(true);
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  const submit = async () => {
+    if (!valid || !town || !scamType || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      // Do not add a local-only row. The response has the stable ID that every
+      // device receives from GET /reports after restarting Expo.
+      const report = await api.createReport({ dateReported: date, scamType, town, description });
+      scamStore.upsertReport(report);
+      setDate(deviceToday());
+      setDescription('');
+      setTown(undefined);
+      setScamType(undefined);
+      setSubmitted(true);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Could not submit this report. Please try again.');
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Drop the confirmation when the user leaves the tab, so returning later shows
   // a clean form rather than a stale "thank you" for a report already filed.
   useFocusEffect(
     useCallback(() => {
-      return () => setSubmitted(false);
+      return () => {
+        setSubmitted(false);
+        setSubmitError(null);
+      };
     }, [])
   );
 
@@ -108,6 +126,8 @@ export const ReportScreen: React.FC = () => {
             <Muted>{t('report.submittedAgain')}</Muted>
           </View>
         ) : null}
+
+        {submitError ? <Muted style={styles.error}>{submitError}</Muted> : null}
 
         <Card>
           <Muted>{t('report.date')} *</Muted>
@@ -173,7 +193,12 @@ export const ReportScreen: React.FC = () => {
           <ComfortNote />
         </Card>
 
-        <Button title={t('report.submit')} onPress={submit} disabled={!valid} />
+        <Button
+          title={t('report.submit')}
+          onPress={submit}
+          disabled={!valid || submitting}
+          loading={submitting}
+        />
       </ScrollView>
     </SafeAreaView>
   );
@@ -203,5 +228,6 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   successTitle: { color: colors.safe, fontWeight: '800' },
+  error: { color: colors.high },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

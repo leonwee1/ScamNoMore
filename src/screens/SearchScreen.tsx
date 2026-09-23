@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Linking,
   Pressable,
@@ -14,7 +14,7 @@ import { Dropdown, DropdownOption } from '../components/Dropdown';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SingaporeHeatmap } from '../components/SingaporeHeatmap';
 import { Body, Button, Card, Muted, SubHeading } from '../components/ui';
-import { computeStats, scamTypes, searchScams, towns } from '../data/scamStore';
+import { computeStats, scamStore, scamTypes, searchScams, SearchFilters, towns } from '../data/scamStore';
 import { ScamRecord } from '../data/types';
 import { useI18n } from '../i18n';
 import { useDomain } from '../i18n/useDomain';
@@ -46,8 +46,13 @@ export const SearchScreen: React.FC = () => {
   const { t } = useI18n();
   const domain = useDomain();
 
-  const allTypes = useMemo(() => scamTypes(), []);
-  const allTowns = useMemo(() => towns(), []);
+  // Re-render when startup hydration or a confirmed report updates the shared
+  // store. A previously-run query then refreshes instead of showing stale data.
+  const [storeVersion, setStoreVersion] = useState(0);
+  useEffect(() => scamStore.subscribe(() => setStoreVersion((version) => version + 1)), []);
+
+  const allTypes = useMemo(() => scamTypes(), [storeVersion]);
+  const allTowns = useMemo(() => towns(), [storeVersion]);
 
   const [scamType, setScamType] = useState(ANY);
   const [period, setPeriod] = useState('6m');
@@ -55,7 +60,7 @@ export const SearchScreen: React.FC = () => {
   const [keywords, setKeywords] = useState('');
   const [verifiedOnly, setVerifiedOnly] = useState(true);
 
-  const [results, setResults] = useState<ScamRecord[] | null>(null);
+  const [appliedFilters, setAppliedFilters] = useState<SearchFilters | null>(null);
   /** Zero-based page index. Exactly one page of PAGE cases is on screen. */
   const [page, setPage] = useState(0);
 
@@ -79,20 +84,22 @@ export const SearchScreen: React.FC = () => {
       .map((k) => k.trim())
       .filter(Boolean);
 
-    setResults(
-      searchScams({
-        // Relative period resolved against the device's own calendar.
-        from: monthsAgo(months),
-        to: deviceToday(),
-        keywords: kw,
-        scamType: scamType === ANY ? undefined : scamType,
-        town: town === ANY ? undefined : town,
-        verifiedOnly,
-      })
-    );
+    setAppliedFilters({
+      // Relative period resolved against the device's own calendar.
+      from: monthsAgo(months),
+      to: deviceToday(),
+      keywords: kw,
+      scamType: scamType === ANY ? undefined : scamType,
+      town: town === ANY ? undefined : town,
+      verifiedOnly,
+    });
     setPage(0);
   };
 
+  const results = useMemo(
+    () => (appliedFilters ? searchScams(appliedFilters) : null),
+    [appliedFilters, storeVersion]
+  );
   const stats = useMemo(() => (results ? computeStats(results) : null), [results]);
 
   // A single window of results, so the list stays exactly one page long instead
@@ -195,7 +202,7 @@ export const SearchScreen: React.FC = () => {
                       <Muted numberOfLines={1} style={styles.caseKeywords}>
                         {domain.keywords(r.keywords).join(', ')}
                       </Muted>
-                      {r.source ? (
+                      {/^https?:\/\//i.test(r.source) ? (
                         <Pressable
                           onPress={() => Linking.openURL(r.source).catch(() => undefined)}
                           accessibilityRole="link"

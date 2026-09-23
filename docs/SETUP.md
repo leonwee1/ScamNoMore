@@ -1,128 +1,111 @@
 # Setup
 
-ScamNoMore uses **OpenAI** for all analysis and the chatbot. Setup is three steps.
+ScamNoMore sends analysis and chatbot requests through its Node backend. The
+backend holds the OpenAI key; never put that key in the Expo app.
 
-```
-Expo app ──HTTP──▶ backend (holds the key) ──▶ OpenAI
-                                              ├─ gpt-4o vision  → image analysis
-                                              ├─ whisper-1      → voice + video audio
-                                              └─ gpt-4o         → text analysis + chatbot
+```text
+Expo app → backend → OpenAI
 ```
 
-## Where the OpenAI API key goes
-
-**In `backend/.env` — never in the app, never in source code.**
-
-```powershell
-cd backend
-copy .env.example .env      # macOS/Linux: cp .env.example .env
-```
-
-Then edit `.env`:
-
-```
-OPENAI_API_KEY=sk-proj-your-real-key-here
-```
-
-`backend/.env` is gitignored, so it will not be committed. `dotenv` loads it at
-startup (first line of `src/local-server.ts`) and `src/lib/openai.ts` reads
-`process.env.OPENAI_API_KEY`.
-
-> **Why not in the app?** Anything bundled into an Expo app can be extracted from
-> the build, and a leaked key is billed to you. The backend keeps it server-side.
-
-Get a key at <https://platform.openai.com/api-keys>.
-
-## 1. Start the backend
+## 1. Configure and start the backend
 
 ```powershell
 cd backend
 npm install
+copy .env.example .env
+```
+
+Set this in `backend/.env`:
+
+```text
+OPENAI_API_KEY=sk-proj-your-real-key-here
+```
+
+You may also set a local `APP_SHARED_SECRET` and match it in `app.json`. It is
+only a basic request guard, not authentication, because values packaged in an
+Expo app can be extracted.
+
+Then start the server:
+
+```powershell
 npm run dev
 ```
 
-You should see:
+Check `http://localhost:3000/health` from the same computer.
 
-```
-ScamNoMore backend listening on http://0.0.0.0:3000
-  chat model : gpt-4o
-  whisper    : whisper-1
-  API key    : loaded from environment ✓
-```
+## 2. Point Expo Go at the backend
 
-Verify: open <http://localhost:3000/health> — it reports the models and whether
-the key was found.
-
-## 2. Point the app at the backend
-
-Find your computer's LAN IP (the phone cannot reach `localhost`):
+For a phone on the same Wi-Fi, find the computer's LAN IP:
 
 ```powershell
 Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -like '*Wi-Fi*' }
 ```
 
-Put it in `app.json` → `expo.extra`:
+Set it in `app.json` under `expo.extra` (not `localhost`):
 
 ```json
 "extra": { "apiBaseUrl": "http://172.20.10.11:3000" }
 ```
 
-## 3. Start the app
+Restart Expo after changing configuration:
 
 ```powershell
-npx expo start -c      # -c clears the cache so the new config is picked up
+npx expo start -c
 ```
 
-Phone and computer must be on the same Wi-Fi. If the QR won't connect, use
-`npx expo start --tunnel`.
+## 3. Processing and result behavior
 
----
+The app asks for consent before each image, audio, video, or transcript is
+sent. It sends the content over HTTPS to the backend and OpenAI; the app does
+not intentionally save raw media. Do not upload OTPs, passwords, NRICs, full
+card numbers, or other sensitive information.
 
-## How each feature works
-
-| Feature | Pipeline | Notes |
+| Feature | Pipeline | Important limit |
 | --- | --- | --- |
-| Take picture / Upload image | `gpt-4o` vision | Reads all text in the image **and** judges visual cues: implausible discounts, fake urgency banners, fake news/brand mastheads, fake endorsements, fake login/payment screens, QR codes |
-| Upload audio / Say what happened | `whisper-1` → user edits transcript → `gpt-4o` | Whisper auto-detects the language (EN/ZH/MS/TA) |
-| Upload video | `whisper-1` on the **audio track** → `gpt-4o` | No frame extraction needed. A silent video reports "no speech detected" rather than guessing |
-| Chatbot | `gpt-4o` with history | Singapore-specific system prompt, 1799 helpline |
+| Image | selected image → OpenAI vision | GIF is sent as `image/gif`. |
+| Audio | document/recording → Whisper → editable transcript → OpenAI text analysis | Expo Go uses a document picker for common audio formats such as MP3, M4A, and WAV. |
+| Video | video audio track → Whisper → editable transcript → OpenAI text analysis | Video frames are not inspected. |
+| Chatbot | text/history → OpenAI | Awareness guidance only, not official advice. |
 
-Media is POSTed as raw bytes with its `Content-Type` — no object storage, no
-presigned URLs, no multipart parsing.
+An assessed result contains a model-derived score and guidance. If the media
+has no usable speech or the model returns no valid probability, the response is
+`assessmentStatus: "unable_to_assess"`. The UI gives a reason and conservative
+next steps and deliberately hides the score/gauge; it is not a low-risk result.
 
-### Endpoints
+## API routes
 
-| Route | Body | Returns |
-| --- | --- | --- |
-| `POST /analyze/image` | raw image bytes | `AnalysisResult` |
-| `POST /analyze/video` | raw video bytes | `AnalysisResult` |
-| `POST /transcribe` | raw audio bytes | `{ text }` |
-| `POST /analyze/text` | `{ text, source }` | `AnalysisResult` |
-| `POST /chat` | `{ message, history }` | `{ reply }` |
-| `GET /health` | – | models + key status |
-
-`AnalysisResult` = `{ probability, riskLevel, scamType, reasons[], advice, detectedText?, signals? }`.
-`signals` carries the raw evidence (transcript/text) so you can audit exactly
-what the model was shown.
-
-## Limits and cost
-
-- **Whisper caps files at 25 MB.** The app checks this before uploading and shows
-  a friendly message. A 5-minute voice recording is comfortably under it; a
-  5-minute *video* may not be — use a shorter clip.
-- Costs are per-token/per-minute and small for this workload. `gpt-4o-mini`
-  (set `OPENAI_CHAT_MODEL`) is cheaper, but **must remain vision-capable** for
-  image analysis.
-
-## Troubleshooting
-
-| Symptom | Fix |
+| Route | Purpose |
 | --- | --- |
-| Orange banner "Backend not configured" | `apiBaseUrl` empty in `app.json`. Set it and run `npx expo start -c`. |
-| "Cannot reach the backend at ..." | Backend not running, wrong LAN IP, or phone on a different network. Check `/health` from your computer first. |
-| `OPENAI_API_KEY is not set` | Create `backend/.env` with the key, then restart the backend. |
-| `401 Incorrect API key` | Bad or revoked key. Regenerate at platform.openai.com. |
-| `429 quota exceeded` | Add billing credit to your OpenAI account. |
-| Video returns "no speech detected" | The clip is silent. Screenshot it and use the image check instead. |
-| `EADDRINUSE :::3000` | Port already used. Stop the old process or set `PORT=3001`. |
-| Want a permanent public URL? | See [DEPLOY_RENDER.md](DEPLOY_RENDER.md). |
+| `POST /analyze/image` | Analyze raw image bytes. |
+| `POST /analyze/video` | Transcribe/analyze raw video bytes. |
+| `POST /transcribe` | Transcribe raw audio bytes. |
+| `POST /analyze/text` | Analyze `{ text, source }`. |
+| `POST /chat` | Chatbot request with `{ message, history }`. |
+| `GET /reports`, `POST /reports` | List or create unverified incident records. |
+| `GET /community/messages?roomKey=…`, `POST /community/messages` | List or create anonymous room messages; `beforeCreatedAt` + `beforeId` load older pages. |
+| `GET /health` | Server health and configured models. |
+
+Reports and community messages use the backend's SQLite path. Local development
+defaults to `backend/data/scamnomore.sqlite`; set `REPORTS_DB_PATH` to override
+it. For persistence across deploys and devices on Render, follow
+[the Render deployment guide](DEPLOY_RENDER.md) and attach the persistent disk.
+
+## Limits and troubleshooting
+
+- The app accepts media files up to 64 MB, then the backend extracts/compresses
+  audio before the resulting Whisper upload is checked against its 25 MB limit.
+  Trim very long videos before upload.
+- A silent or purely visual video should be checked with an image/screenshot
+  flow, since video analysis does not extract frames.
+- A new report is `Verified: No` and is hidden while Search's default
+  **verified only** filter is enabled.
+- A community room is public and unmoderated; do not post personal details or
+  use it for emergency reporting.
+
+| Symptom | Check |
+| --- | --- |
+| Backend banner says not configured | Set `apiBaseUrl` and restart Expo with `-c`. |
+| Phone cannot reach backend | Confirm the LAN IP, Wi-Fi/network access, and `/health`. |
+| API key error | Check `backend/.env`, then restart the backend. |
+| New data disappears after Render deploy | A paid disk must be mounted at `/var/data` and `REPORTS_DB_PATH` must point there. |
+| Media result says Unable to assess | Read the displayed reason; do not infer that the content is safe. |

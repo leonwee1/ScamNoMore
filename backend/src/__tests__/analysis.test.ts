@@ -1,6 +1,7 @@
 import { filenameFor, mimeOf } from '../lib/http';
+import { noSpeechResult } from '../lib/openai';
 import { extractJsonObject, parseAnalysisJson } from '../lib/parse';
-import { buildAnalysisUserPrompt } from '../lib/prompts';
+import { ANALYSIS_SYSTEM_PROMPT, buildAnalysisUserPrompt } from '../lib/prompts';
 import { riskFromProbability } from '../lib/types';
 
 describe('extractJsonObject', () => {
@@ -43,8 +44,14 @@ describe('parseAnalysisJson', () => {
     advice: 'Do not pay.',
   });
 
+  const assessed = (raw: string) => {
+    const result = parseAnalysisJson(raw);
+    if (result.assessmentStatus !== 'assessed') throw new Error('Expected an assessed result');
+    return result;
+  };
+
   it('parses a well-formed response', () => {
-    const r = parseAnalysisJson(valid);
+    const r = assessed(valid);
     expect(r.probability).toBe(0.82);
     expect(r.scamType).toBe('E-commerce Scam');
     expect(r.reasons).toHaveLength(2);
@@ -52,50 +59,73 @@ describe('parseAnalysisJson', () => {
   });
 
   it('parses a fenced response with prose', () => {
-    expect(parseAnalysisJson('Sure!\n```json\n' + valid + '\n```').probability).toBe(0.82);
+    expect(assessed('Sure!\n```json\n' + valid + '\n```').probability).toBe(0.82);
   });
 
   it('converts percentages to 0..1', () => {
-    const r = parseAnalysisJson('{"probability":93,"scamType":"Lottery Scam","reasons":["x"],"advice":"y"}');
+    const r = assessed('{"probability":93,"scamType":"Lottery Scam","reasons":["x"],"advice":"y"}');
     expect(r.probability).toBe(0.93);
   });
 
-  it('clamps negatives to 0', () => {
-    expect(parseAnalysisJson('{"probability":-5,"reasons":["x"],"advice":"y"}').probability).toBe(0);
+  it('withholds a negative probability instead of showing 0% safe', () => {
+    expect(parseAnalysisJson('{"probability":-5,"reasons":["x"],"advice":"y"}')).toMatchObject({
+      assessmentStatus: 'unable_to_assess',
+      reason: 'invalid-model-probability',
+    });
   });
 
-  it('fails SAFE for a fraction that overshoots 1 (1.5 -> 1, never 0.015)', () => {
-    // Regression guard: dividing 1.5 by 100 would report an extreme scam as "safe".
-    expect(parseAnalysisJson('{"probability":1.5,"reasons":["x"],"advice":"y"}').probability).toBe(1);
+  it('withholds an ambiguous fraction instead of guessing a risk band', () => {
+    expect(parseAnalysisJson('{"probability":1.5,"reasons":["x"],"advice":"y"}')).toMatchObject({
+      assessmentStatus: 'unable_to_assess',
+    });
   });
 
-  it('clamps absurd values to 1', () => {
-    expect(parseAnalysisJson('{"probability":250,"reasons":["x"],"advice":"y"}').probability).toBe(1);
+  it('withholds absurd values rather than forcing a score', () => {
+    expect(parseAnalysisJson('{"probability":250,"reasons":["x"],"advice":"y"}')).toMatchObject({
+      assessmentStatus: 'unable_to_assess',
+    });
   });
 
   it('treats 2..100 as a percentage', () => {
-    expect(parseAnalysisJson('{"probability":100,"reasons":["x"],"advice":"y"}').probability).toBe(1);
-    expect(parseAnalysisJson('{"probability":45,"reasons":["x"],"advice":"y"}').probability).toBe(0.45);
+    expect(assessed('{"probability":100,"reasons":["x"],"advice":"y"}').probability).toBe(1);
+    expect(assessed('{"probability":45,"reasons":["x"],"advice":"y"}').probability).toBe(0.45);
   });
 
-  it('defaults a missing probability to 0', () => {
-    expect(parseAnalysisJson('{"scamType":"Others","reasons":["x"],"advice":"y"}').probability).toBe(0);
+  it('withholds a missing probability instead of defaulting to 0', () => {
+    expect(parseAnalysisJson('{"scamType":"Others","reasons":["x"],"advice":"y"}')).toMatchObject({
+      assessmentStatus: 'unable_to_assess',
+    });
+  });
+
+  it('honors an explicit insufficient-evidence outcome without a score', () => {
+    const result = parseAnalysisJson(
+      JSON.stringify({
+        assessmentStatus: 'unable_to_assess',
+        reasons: ['The screenshot is too blurred to read.'],
+        advice: 'Use a clearer screenshot and verify independently.',
+      })
+    );
+    expect(result).toMatchObject({
+      assessmentStatus: 'unable_to_assess',
+      reason: 'insufficient-evidence',
+    });
+    expect('probability' in result).toBe(false);
   });
 
   it('normalises scam type casing to the canonical list', () => {
-    const r = parseAnalysisJson('{"probability":0.5,"scamType":"phishing scam","reasons":["x"],"advice":"y"}');
+    const r = assessed('{"probability":0.5,"scamType":"phishing scam","reasons":["x"],"advice":"y"}');
     expect(r.scamType).toBe('Phishing Scam');
   });
 
   it('supplies fallbacks for missing reasons and advice', () => {
-    const r = parseAnalysisJson('{"probability":0.5}');
+    const r = assessed('{"probability":0.5}');
     expect(r.reasons.length).toBeGreaterThan(0);
     expect(r.advice).toMatch(/1799/);
   });
 
   it('caps reasons at five entries', () => {
     const many = JSON.stringify({ probability: 0.5, reasons: ['a', 'b', 'c', 'd', 'e', 'f'], advice: 'x' });
-    expect(parseAnalysisJson(many).reasons).toHaveLength(5);
+    expect(assessed(many).reasons).toHaveLength(5);
   });
 
   it('throws on responses with no JSON at all', () => {
@@ -108,6 +138,11 @@ describe('parseAnalysisJson', () => {
 });
 
 describe('buildAnalysisUserPrompt', () => {
+  it('asks the model to return an explicit scoreless state for unreadable evidence', () => {
+    expect(ANALYSIS_SYSTEM_PROMPT).toContain('"assessmentStatus": "unable_to_assess"');
+    expect(ANALYSIS_SYSTEM_PROMPT).not.toMatch(/return a low probability/i);
+  });
+
   it('directs the model to read text and judge visual cues for images', () => {
     const p = buildAnalysisUserPrompt({ source: 'image' });
     expect(p).toMatch(/still image/i);
@@ -131,12 +166,24 @@ describe('buildAnalysisUserPrompt', () => {
   it('handles a silent video honestly', () => {
     const p = buildAnalysisUserPrompt({ source: 'video', noSpeechDetected: true });
     expect(p).toMatch(/No speech could be detected/i);
-    expect(p).toMatch(/keep the probability low/i);
+    expect(p).toMatch(/cannot be assessed/i);
   });
 
   it('includes plain user text', () => {
     const p = buildAnalysisUserPrompt({ source: 'text', text: 'You have won $1m' });
     expect(p).toContain('You have won $1m');
+  });
+});
+
+describe('noSpeechResult', () => {
+  it('is unable to assess, with no probability or risk band', () => {
+    const result = noSpeechResult('video');
+    expect(result).toMatchObject({
+      assessmentStatus: 'unable_to_assess',
+      signals: { unableToAssessReason: 'no-speech' },
+    });
+    expect('probability' in result).toBe(false);
+    expect('riskLevel' in result).toBe(false);
   });
 });
 

@@ -7,41 +7,63 @@ import { SCAM_TYPES } from './types';
  * valid JSON — but not that the *fields* are sane. This layer validates and
  * clamps every value so a bad response can never produce a misleading verdict.
  */
-export interface ParsedAnalysis {
-  probability: number;
-  scamType: string;
-  reasons: string[];
-  advice: string;
-}
+export type ParsedAnalysis =
+  | {
+      assessmentStatus: 'assessed';
+      probability: number;
+      scamType: string;
+      reasons: string[];
+      advice: string;
+    }
+  | {
+      assessmentStatus: 'unable_to_assess';
+      reason: 'invalid-model-probability' | 'insufficient-evidence';
+      reasons: string[];
+      advice: string;
+    };
 
 export function parseAnalysisJson(raw: string): ParsedAnalysis {
   const json = extractJsonObject(raw);
   if (!json) {
-    throw new Error(`Could not find JSON in model response: ${raw.slice(0, 200)}`);
+    throw new Error('Could not find JSON in model response');
   }
 
   let obj: Record<string, unknown>;
   try {
     obj = JSON.parse(json) as Record<string, unknown>;
   } catch {
-    throw new Error(`Model returned invalid JSON: ${json.slice(0, 200)}`);
+    throw new Error('Model returned invalid JSON');
   }
 
-  // Probability: accept either a 0..1 fraction or a 0..100 percentage.
-  //
-  // Disambiguation matters. A naive "if (v > 1) v /= 100" would turn a model's
-  // 1.5 into 0.015 — flipping an extreme-risk verdict into "safe", the most
-  // dangerous possible misread for a scam detector. So:
-  //   (1, 2)   -> a fraction that overshot; clamp UP to 1 (fail loud, not silent)
-  //   [2, 100] -> a percentage; divide by 100
-  //   > 100    -> nonsense; clamp to 1
-  let probability = Number(obj.probability);
-  if (!Number.isFinite(probability)) probability = 0;
-  if (probability > 1 && probability < 2) probability = 1;
-  else if (probability >= 2 && probability <= 100) probability = probability / 100;
-  else if (probability > 100) probability = 1;
-  probability = Math.min(1, Math.max(0, probability));
-  probability = Number(probability.toFixed(2));
+  const reasons = readReasons(obj);
+  const advice = readAdvice(obj);
+
+  // The model can explicitly say the supplied content was too unclear to
+  // assess. Treat that as a real, scoreless outcome instead of inviting it to
+  // make a low-confidence 0% guess.
+  if (obj.assessmentStatus === 'unable_to_assess') {
+    return {
+      assessmentStatus: 'unable_to_assess',
+      reason: 'insufficient-evidence',
+      reasons: reasons.length
+        ? reasons
+        : ['The available evidence was too unclear to assess with confidence.'],
+      advice,
+    };
+  }
+
+  // 0 is a real very-low-risk verdict. Never use it as a fallback when the
+  // model omitted or malformed its probability; return an explicit inconclusive
+  // state instead. Percentages from 2 through 100 are accepted for robustness.
+  const probability = normalizeProbability(obj.probability);
+  if (probability === undefined) {
+    return {
+      assessmentStatus: 'unable_to_assess',
+      reason: 'invalid-model-probability',
+      reasons: ['The model response did not include a usable scam probability.'],
+      advice,
+    };
+  }
 
   const scamTypeRaw = typeof obj.scamType === 'string' ? obj.scamType.trim() : '';
   const scamType =
@@ -49,21 +71,40 @@ export function parseAnalysisJson(raw: string): ParsedAnalysis {
       (t) => t.toLowerCase() === scamTypeRaw.toLowerCase()
     ) ?? (scamTypeRaw || 'Others');
 
-  const reasons = Array.isArray(obj.reasons)
-    ? obj.reasons.map((r) => String(r).trim()).filter(Boolean).slice(0, 5)
-    : [];
-
-  const advice =
-    typeof obj.advice === 'string' && obj.advice.trim()
-      ? obj.advice.trim()
-      : 'Do not click links, transfer money, or share OTPs. If unsure, call the ScamShield helpline 1799.';
-
   return {
+    assessmentStatus: 'assessed',
     probability,
     scamType,
     reasons: reasons.length ? reasons : ['The model did not provide detailed reasoning.'],
     advice,
   };
+}
+
+function readReasons(obj: Record<string, unknown>): string[] {
+  return Array.isArray(obj.reasons)
+    ? obj.reasons.map((r) => String(r).trim()).filter(Boolean).slice(0, 5)
+    : [];
+}
+
+function readAdvice(obj: Record<string, unknown>): string {
+  return typeof obj.advice === 'string' && obj.advice.trim()
+    ? obj.advice.trim()
+    : 'Do not click links, transfer money, or share OTPs. If unsure, call the ScamShield helpline 1799.';
+}
+
+/** Normalize a valid model probability, or withhold the score when invalid. */
+function normalizeProbability(value: unknown): number | undefined {
+  if (typeof value !== 'number' && typeof value !== 'string') return undefined;
+  if (typeof value === 'string' && !value.trim()) return undefined;
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) return undefined;
+  if (numeric >= 0 && numeric <= 1) return Number(numeric.toFixed(2));
+  if (numeric >= 2 && numeric <= 100) return Number((numeric / 100).toFixed(2));
+
+  // 1–2 is ambiguous (1.5 could be 1.5% or 150%), and values above 100 are
+  // not a trustworthy score. Neither can be quietly displayed as safe.
+  return undefined;
 }
 
 /** Extract the first balanced {...} block, ignoring markdown fences. */

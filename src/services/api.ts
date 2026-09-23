@@ -1,5 +1,6 @@
 import { datasetSummary } from '../data/scamStore';
-import { AnalysisResult } from './analysis';
+import type { ScamRecord } from '../data/types';
+import { AnalysisResult, AnalysisSignals, riskFromProbability } from './analysis';
 import { config } from './config';
 import { deviceToday } from './dates';
 
@@ -53,19 +54,20 @@ const TIMEOUT_MS = 180_000; // Whisper on a 5-minute clip can take a while.
 
 async function request<T>(
   pathName: string,
-  init: { body: BodyInit; contentType: string }
+  init: { method?: 'GET' | 'POST'; body?: BodyInit; contentType?: string }
 ): Promise<T> {
   const base = requireBaseUrl();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  const headers: Record<string, string> = { 'Content-Type': init.contentType };
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (init.contentType) headers['Content-Type'] = init.contentType;
   // Shared secret so strangers who find the public URL can't spend the quota.
   if (config.appSecret) headers['x-app-secret'] = config.appSecret;
 
   try {
     const res = await fetch(`${base}${pathName}`, {
-      method: 'POST',
+      method: init.method ?? 'POST',
       headers,
       body: init.body,
       signal: controller.signal,
@@ -126,6 +128,12 @@ const postJson = <T,>(pathName: string, body: Record<string, unknown>): Promise<
     contentType: 'application/json',
   });
 
+/** JSON used by app-owned data routes, which must not receive model-only fields. */
+const postPlainJson = <T,>(pathName: string, body: object): Promise<T> =>
+  request<T>(pathName, { body: JSON.stringify(body), contentType: 'application/json' });
+
+const getJson = <T,>(pathName: string): Promise<T> => request<T>(pathName, { method: 'GET' });
+
 /**
  * Build a query string for media endpoints. Those send the file as the entire
  * request body, so options have to travel in the URL.
@@ -142,7 +150,7 @@ function mediaQuery(extra: Record<string, string | undefined> = {}): string {
 export function contentTypeFor(uri: string, kind: 'image' | 'audio' | 'video'): string {
   const ext = uri.split('?')[0].split('.').pop()?.toLowerCase() ?? '';
   const map: Record<string, string> = {
-    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', heic: 'image/heic',
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic',
     m4a: 'audio/m4a', mp3: 'audio/mpeg', wav: 'audio/wav', caf: 'audio/wav', webm: 'audio/webm',
     mp4: kind === 'video' ? 'video/mp4' : 'audio/mp4', mov: 'video/quicktime',
   };
@@ -169,9 +177,10 @@ async function readFile(uri: string, kind: 'image' | 'audio' | 'video'): Promise
 async function postMedia<T>(
   pathName: string,
   uri: string,
-  kind: 'image' | 'audio' | 'video'
+  kind: 'image' | 'audio' | 'video',
+  explicitContentType?: string
 ): Promise<T> {
-  const contentType = contentTypeFor(uri, kind);
+  const contentType = explicitContentType ?? contentTypeFor(uri, kind);
   const blob = await readFile(uri, kind);
   return request<T>(pathName, { body: blob, contentType });
 }
@@ -181,24 +190,142 @@ export interface ChatTurn {
   content: string;
 }
 
+export interface NewReportInput {
+  dateReported: string;
+  scamType: string;
+  town: string;
+  description: string;
+}
+
+/** Anonymous message returned by the shared community-room API. */
+export interface CommunityMessage {
+  id: string;
+  roomKey: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface CommunityMessageCursor {
+  createdAt: string;
+  id: string;
+}
+
+export interface CommunityMessagePage {
+  messages: CommunityMessage[];
+  nextBefore?: CommunityMessageCursor;
+}
+
+export interface NewCommunityMessageInput {
+  roomKey: string;
+  text: string;
+}
+
 /**
  * Record which language the model was asked to answer in, so the UI can later
  * detect that a stored verdict no longer matches the user's selection.
  */
-function stampLanguage(result: AnalysisResult, language?: string): AnalysisResult {
-  return language ? { ...result, language } : result;
+function normaliseSignals(value: unknown): AnalysisSignals | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const source = raw.source;
+  if (source !== 'image' && source !== 'video' && source !== 'voice' && source !== 'text') {
+    return undefined;
+  }
+  return {
+    source,
+    ...(typeof raw.transcript === 'string' ? { transcript: raw.transcript } : {}),
+    ...(typeof raw.text === 'string' ? { text: raw.text } : {}),
+    ...(typeof raw.durationSeconds === 'number' ? { durationSeconds: raw.durationSeconds } : {}),
+    ...(raw.noSpeechDetected === true ? { noSpeechDetected: true } : {}),
+    ...(raw.unableToAssessReason === 'no-speech' ||
+    raw.unableToAssessReason === 'invalid-model-probability' ||
+    raw.unableToAssessReason === 'insufficient-evidence'
+      ? { unableToAssessReason: raw.unableToAssessReason }
+      : {}),
+  };
+}
+
+/**
+ * Treat every network response as untrusted. This protects users still hitting
+ * an older backend too: its legacy silent-media `{ probability: 0, safe }`
+ * response becomes an explicit unable-to-assess result before it reaches a gauge.
+ */
+export function normaliseAnalysisResult(value: unknown, language?: string): AnalysisResult {
+  const raw = value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+  const signals = normaliseSignals(raw.signals);
+  const reasons = Array.isArray(raw.reasons)
+    ? raw.reasons.filter((reason): reason is string => typeof reason === 'string').slice(0, 5)
+    : [];
+  const advice = typeof raw.advice === 'string' ? raw.advice : '';
+  const probability = raw.probability;
+  const unable =
+    raw.assessmentStatus === 'unable_to_assess' ||
+    signals?.noSpeechDetected === true ||
+    typeof probability !== 'number' ||
+    !Number.isFinite(probability) ||
+    probability < 0 ||
+    probability > 1;
+
+  if (unable) {
+    const unableToAssessReason =
+      signals?.noSpeechDetected || signals?.unableToAssessReason === 'no-speech'
+        ? 'no-speech'
+        : signals?.unableToAssessReason === 'invalid-model-probability'
+          ? 'invalid-model-probability'
+          : signals?.unableToAssessReason === 'insufficient-evidence' ||
+              raw.assessmentStatus === 'unable_to_assess'
+            ? 'insufficient-evidence'
+            : 'invalid-model-probability';
+    return {
+      assessmentStatus: 'unable_to_assess',
+      reasons,
+      advice,
+      ...(typeof raw.detectedText === 'string' ? { detectedText: raw.detectedText } : {}),
+      ...(signals
+        ? {
+            signals: {
+              ...signals,
+              unableToAssessReason,
+            },
+          }
+        : { signals: { source: 'text', unableToAssessReason } }),
+      ...(language ? { language } : {}),
+    };
+  }
+
+  return {
+    assessmentStatus: 'assessed',
+    probability,
+    // The backend may be upgraded independently, so derive the label from the
+    // validated score rather than trusting an arbitrary network riskLevel.
+    riskLevel: riskFromProbability(probability),
+    ...(typeof raw.scamType === 'string' && raw.scamType.trim() ? { scamType: raw.scamType.trim() } : {}),
+    reasons,
+    advice,
+    ...(typeof raw.detectedText === 'string' ? { detectedText: raw.detectedText } : {}),
+    ...(signals ? { signals } : {}),
+    ...(language ? { language } : {}),
+  };
+}
+
+function stampLanguage(result: unknown, language?: string): AnalysisResult {
+  return normaliseAnalysisResult(result, language);
 }
 
 /** Shared transcription call for both the audio and video flows. */
 async function transcribe(
   uri: string,
   kind: 'audio' | 'video',
-  language?: string
+  language?: string,
+  explicitContentType?: string
 ): Promise<{ text: string; noSpeechDetected: boolean }> {
   const res = await postMedia<{ text: string; noSpeechDetected?: boolean }>(
     `/transcribe${mediaQuery({ language })}`,
     uri,
-    kind
+    kind,
+    explicitContentType
   );
   return {
     text: res.text ?? '',
@@ -209,17 +336,69 @@ async function transcribe(
 }
 
 export const api = {
+  /** Fetch the complete shared, unverified-report list for this Expo session. */
+  async listReports(): Promise<ScamRecord[]> {
+    const response = await getJson<{ reports?: ScamRecord[] }>('/reports');
+    if (!Array.isArray(response.reports)) {
+      throw new Error('Reports response did not include a reports list.');
+    }
+    return response.reports;
+  },
+
+  /** Persist a report first; only the server-assigned row is added to the UI. */
+  async createReport(input: NewReportInput): Promise<ScamRecord> {
+    const response = await postPlainJson<{ report?: ScamRecord }>('/reports', input);
+    if (!response.report) throw new Error('Reports response did not include the new report.');
+    return response.report;
+  },
+
+  /** Read one shared room. It is refreshed each time a user enters the room. */
+  async listCommunityMessages(
+    roomKey: string,
+    before?: CommunityMessageCursor
+  ): Promise<CommunityMessagePage> {
+    const query = new URLSearchParams({ roomKey });
+    if (before) {
+      query.set('beforeCreatedAt', before.createdAt);
+      query.set('beforeId', before.id);
+    }
+    const response = await getJson<CommunityMessagePage>(`/community/messages?${query.toString()}`);
+    if (!Array.isArray(response.messages)) {
+      throw new Error('Community response did not include a messages list.');
+    }
+    return {
+      messages: response.messages,
+      ...(response.nextBefore &&
+      typeof response.nextBefore.createdAt === 'string' &&
+      typeof response.nextBefore.id === 'string'
+        ? { nextBefore: response.nextBefore }
+        : {}),
+    };
+  },
+
+  /** Persist an anonymous message; only the server-confirmed row reaches the UI. */
+  async createCommunityMessage(input: NewCommunityMessageInput): Promise<CommunityMessage> {
+    const response = await postPlainJson<{ message?: CommunityMessage }>('/community/messages', input);
+    if (!response.message) throw new Error('Community response did not include the new message.');
+    return response.message;
+  },
+
   /**
    * gpt-4o vision: reads the text in the image and judges visual scam cues.
    * `language` is the selected UI language; the model writes its reasons and
    * advice in it, while `scamType` stays a canonical English enum value.
    */
-  async analyzeImage(imageUri: string, language?: string): Promise<AnalysisResult> {
+  async analyzeImage(
+    imageUri: string,
+    language?: string,
+    contentType?: string
+  ): Promise<AnalysisResult> {
     return stampLanguage(
-      await postMedia<AnalysisResult>(
+      await postMedia<unknown>(
         `/analyze/image${mediaQuery({ language })}`,
         imageUri,
-        'image'
+        'image',
+        contentType
       ),
       language
     );
@@ -232,7 +411,7 @@ export const api = {
    */
   async analyzeVideo(videoUri: string, language?: string): Promise<AnalysisResult> {
     return stampLanguage(
-      await postMedia<AnalysisResult>(
+      await postMedia<unknown>(
         `/analyze/video${mediaQuery({ language })}`,
         videoUri,
         'video'
@@ -251,9 +430,10 @@ export const api = {
    */
   transcribeAudio(
     audioUri: string,
-    language?: string
+    language?: string,
+    contentType?: string
   ): Promise<{ text: string; noSpeechDetected: boolean }> {
-    return transcribe(audioUri, 'audio', language);
+    return transcribe(audioUri, 'audio', language, contentType);
   },
 
   /**
@@ -282,7 +462,7 @@ export const api = {
     source: 'voice' | 'video' = 'voice'
   ): Promise<AnalysisResult> {
     return stampLanguage(
-      await postJson<AnalysisResult>('/analyze/text', { text, source, language }),
+      await postJson<unknown>('/analyze/text', { text, source, language }),
       language
     );
   },
@@ -290,7 +470,7 @@ export const api = {
   /** gpt-4o analysis of arbitrary text (message / email / advertisement). */
   async analyzeTextContent(text: string, language?: string): Promise<AnalysisResult> {
     return stampLanguage(
-      await postJson<AnalysisResult>('/analyze/text', { text, source: 'text', language }),
+      await postJson<unknown>('/analyze/text', { text, source: 'text', language }),
       language
     );
   },
@@ -333,4 +513,3 @@ export const api = {
     return Boolean(config.apiBaseUrl?.trim());
   },
 };
-

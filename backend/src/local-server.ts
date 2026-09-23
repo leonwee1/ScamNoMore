@@ -19,12 +19,15 @@ import { handler as analyzeImage } from './handlers/analyzeImage';
 import { handler as analyzeText } from './handlers/analyzeText';
 import { handler as analyzeVideo } from './handlers/analyzeVideo';
 import { handler as chat } from './handlers/chat';
+import { createHandler as createCommunityMessage, listHandler as listCommunityMessages } from './handlers/community';
+import { createHandler as createReport, listHandler as listReports } from './handlers/reports';
 import { handler as transcribe } from './handlers/transcribe';
 import { handler as translate } from './handlers/translate';
 import { MAX_UPLOAD_BYTES } from './lib/audio';
 import { AUTH_HEADER, authEnabled, checkAuth } from './lib/auth';
 import type { Handler } from './lib/http';
-import { checkRateLimit, clientIdFrom, rateLimitConfig } from './lib/rateLimit';
+import { checkGlobalRateLimit, checkRateLimit, clientIdFrom, rateLimitConfig } from './lib/rateLimit';
+import { initializeReportsDb } from './lib/reportsDb';
 
 const PORT = Number(process.env.PORT ?? 3000);
 
@@ -37,13 +40,17 @@ const PORT = Number(process.env.PORT ?? 3000);
  */
 const MAX_BODY_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024;
 
-const ROUTES: Record<string, Handler> = {
-  '/analyze/image': analyzeImage,
-  '/analyze/video': analyzeVideo,
-  '/analyze/text': analyzeText,
-  '/transcribe': transcribe,
-  '/translate': translate,
-  '/chat': chat,
+type RouteMethod = 'GET' | 'POST';
+
+const ROUTES: Record<string, Partial<Record<RouteMethod, Handler>>> = {
+  '/analyze/image': { POST: analyzeImage },
+  '/analyze/video': { POST: analyzeVideo },
+  '/analyze/text': { POST: analyzeText },
+  '/transcribe': { POST: transcribe },
+  '/translate': { POST: translate },
+  '/chat': { POST: chat },
+  '/reports': { GET: listReports, POST: createReport },
+  '/community/messages': { GET: listCommunityMessages, POST: createCommunityMessage },
 };
 
 const CORS = {
@@ -51,6 +58,15 @@ const CORS = {
   'Access-Control-Allow-Headers': `Content-Type, ${AUTH_HEADER}`,
   'Access-Control-Allow-Methods': 'OPTIONS,POST,GET',
 };
+
+const endpointNames = (): string[] =>
+  Object.entries(ROUTES).flatMap(([path, methods]) =>
+    (Object.keys(methods) as RouteMethod[]).map((method) => `${method} ${path}`)
+  );
+
+// Run the idempotent schema migration when the service starts. On Render the
+// persistent disk is attached only at runtime, never during the build.
+initializeReportsDb();
 
 function readBody(req: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -95,7 +111,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       service: 'ScamNoMore backend',
       status: 'running',
       hint: 'This API is used by the ScamNoMore mobile app. Open /health for status.',
-      endpoints: ['GET /health', ...Object.keys(ROUTES).map((r) => `POST ${r}`)],
+      endpoints: ['GET /health', ...endpointNames()],
     });
   }
 
@@ -113,8 +129,8 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     });
   }
 
-  const route = ROUTES[path];
-  if (!route || req.method !== 'POST') {
+  const route = ROUTES[path]?.[req.method as RouteMethod];
+  if (!route) {
     return send(res, 404, { message: `No route for ${req.method} ${path}` });
   }
 
@@ -125,16 +141,28 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return send(res, 401, { message: auth.reason ?? 'Unauthorized' });
   }
 
-  // 2. Rate limit — caps how much of your OpenAI quota any one client can burn.
+  // 2. Per-peer and global rate limits. The global cap is the bill guard even
+  // when a public caller can forge a forwarded-IP header or extract the app's
+  // basic shared secret.
   const clientId = clientIdFrom(req.headers, req.socket.remoteAddress ?? undefined);
   const limit = checkRateLimit(clientId);
   if (!limit.allowed) {
-    console.warn(`429 ${path} — ${clientId} — ${limit.reason}`);
+    console.warn(`429 ${path} — per-peer limit — ${limit.reason}`);
     return send(
       res,
       429,
       { message: limit.reason ?? 'Too many requests' },
       limit.retryAfter ? { 'Retry-After': String(limit.retryAfter) } : {}
+    );
+  }
+  const globalLimit = checkGlobalRateLimit();
+  if (!globalLimit.allowed) {
+    console.warn(`429 ${path} — service-wide limit — ${globalLimit.reason}`);
+    return send(
+      res,
+      429,
+      { message: globalLimit.reason ?? 'Service request limit reached' },
+      globalLimit.retryAfter ? { 'Retry-After': String(globalLimit.retryAfter) } : {}
     );
   }
 
@@ -150,10 +178,12 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
       `${req.method} ${path} -> ${result.statusCode} ` +
         `(${(raw.byteLength / 1024).toFixed(0)} KB, ${Date.now() - started}ms)`
     );
-    send(res, result.statusCode, result.body);
+    send(res, result.statusCode, result.body, result.headers);
   } catch (err) {
-    console.error(`${req.method} ${path} -> 500`, err);
-    send(res, 500, { message: err instanceof Error ? err.message : 'Unexpected error' });
+    // Do not send/log arbitrary exception text: it may contain a transcript or
+    // other user-provided content from an upstream service.
+    console.error(`${req.method} ${path} -> 500 (${err instanceof Error ? err.name : typeof err})`);
+    send(res, 500, { message: 'The server could not process this request. Please try again.' });
   }
 });
 
@@ -178,5 +208,5 @@ server.listen(PORT, () => {
         '     OpenAI quota. Fine on localhost; SET IT before deploying publicly.\n'
     );
   }
-  console.log(`Routes: ${Object.keys(ROUTES).join(', ')}, /health\n`);
+  console.log(`Routes: ${endpointNames().join(', ')}, GET /health\n`);
 });

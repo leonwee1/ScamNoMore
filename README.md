@@ -1,171 +1,156 @@
 # ScamNoMore
 
-A mobile-first, cross-platform scam-detection and awareness app built with
-**React Native + TypeScript on Expo (SDK 54)** — runs in **Expo Go**, no custom
-native modules. It analyzes suspicious **images, voice, and video** with OpenAI,
-lets users **search** a database of Singapore scam cases, **report** new incidents
-into the same dataset, join **community** chat rooms, and chat with a
-**scam-awareness bot** — in **4 languages** (English, 中文, Bahasa Melayu, தமிழ்).
+ScamNoMore is an Expo mobile demo for scam-awareness conversations and
+AI-assisted checks of images, audio, video, and typed descriptions. It supports
+English, Chinese, Bahasa Melayu, and Tamil, and runs in Expo Go.
 
-It ships with a **5,000-row Singapore scam dataset** (scam type, keywords, town,
-specific place, source, year).
+It is an awareness tool, not a fraud-reporting authority, safety guarantee, or
+professional determination. If somebody may be at risk, contact the relevant
+bank, platform, or Singapore ScamShield helpline (1799) promptly.
 
-> **An OpenAI API key is required.** All analysis and the chatbot run on OpenAI —
-> there is no mock/offline analyzer. Put your key in `backend/.env`, start the
-> backend, and set `apiBaseUrl` in `app.json`. Until then the app shows a warning
-> banner and analysis fails with a clear message rather than inventing results.
-> Full steps: **[`docs/SETUP.md`](docs/SETUP.md)** (about 3 minutes).
+## What is real in this demo
+
+- The bundled 5,000-case search dataset is **mock/demo data created for this
+  project**. Its `Verified: Yes` labels are demonstration metadata; they do not
+  mean records verified by an authority.
+- A submitted incident report is sent to the backend, stored as `Verified: No`,
+  and appears in Search after the app reloads the backend data. This is shared
+  across devices only when the deployed backend has persistent SQLite storage.
+- Community rooms save anonymous messages on the backend. Re-entering the same
+  room reloads saved messages, and older history can be loaded in pages, but
+  this is a refresh-based discussion board—not real-time chat, an account
+  system, or a moderated community service.
+- Image, audio, video, text, and chatbot responses use OpenAI through the
+  backend when it is configured. An AI result is an estimate, not a calibrated
+  probability or proof that something is safe/scam-related.
+
+## Privacy before analysis
+
+Before every media or transcript upload, the app asks for consent. The selected
+content is sent over HTTPS to the ScamNoMore backend and then to OpenAI for
+processing. The application does not intentionally persist raw media, but users
+should avoid uploading passwords, OTPs, NRICs, full card numbers, or other
+sensitive personal information. OpenAI processing is subject to OpenAI's own
+policies.
+
+The app displays **Unable to assess** when it cannot make a meaningful
+assessment—for example, a video has no usable speech or the model response has
+no valid probability. It shows the reason, hides the risk gauge, and gives
+conservative next steps; it never treats an inconclusive result as safe.
 
 ## Stack
 
-- Expo SDK **54** · React Native **0.81** · React **19** · TypeScript
-- React Navigation (bottom tabs + native stack)
-- `expo-image-picker` (image/video), `expo-audio` (recording), `react-native-svg` (gauge)
-- Backend: Node + TypeScript, **OpenAI** `gpt-4o` (vision + text) and `whisper-1`
+- Expo SDK 54, React Native, TypeScript, React Navigation
+- `expo-image-picker` for image/video selection, `expo-document-picker` for
+  MP3/M4A/WAV and other audio files, and `expo-audio` for recording
+- Node.js + TypeScript backend, OpenAI vision/text and Whisper APIs
+- SQLite (`better-sqlite3`) for submitted reports and community messages
 
-## Quick start
+## Run locally
 
-```bash
-# 1. Backend (holds the OpenAI key)
+```powershell
+# Backend: holds the OpenAI API key and local SQLite file
 cd backend
 npm install
-copy .env.example .env        # paste your key into .env
-npm run dev                   # http://localhost:3000
+copy .env.example .env
+# Set OPENAI_API_KEY (and optionally APP_SHARED_SECRET) in .env
+npm run dev
 
-# 2. App — set apiBaseUrl in app.json to your LAN IP, e.g. http://172.20.10.11:3000
+# App: set apiBaseUrl in app.json to your LAN address, then start Expo
 cd ..
 npm install
 npx expo start -c
 ```
 
-Scan the QR code in Expo Go. See [`docs/SETUP.md`](docs/SETUP.md) for finding your
-LAN IP and troubleshooting.
+Scan the QR code with Expo Go. For devices on your Wi-Fi, `apiBaseUrl` must use
+your computer's LAN IP rather than `localhost`. See [setup instructions](docs/SETUP.md).
 
-### Sharing the app with others
+### Test and type-check
 
-With the local setup above, the AI features only work for devices on **your
-Wi-Fi** (the backend URL is a private LAN address). To let anyone use it from any
-network, deploy the backend once to Render — it gets a permanent HTTPS URL and
-your laptop is no longer needed: **[`docs/DEPLOY_RENDER.md`](docs/DEPLOY_RENDER.md)**.
-
-The backend supports a **shared-secret header** (`APP_SHARED_SECRET` ↔ `appSecret`
-in `app.json`) and **per-IP rate limiting** (burst + daily cap) so a public URL
-can't be used to run up your OpenAI bill.
-
-### Commands
-
-```bash
-npm test           # app unit tests (36)
-npm run typecheck  # app type check
-cd backend && npm test        # backend unit tests (28)
-cd backend && npm run typecheck
-node scripts/buildMockDataset.js   # regenerate src/data/scams.json (5000 rows)
+```powershell
+npm test
+npm run typecheck
+cd backend
+npm test
+npm run typecheck
+npm run build
 ```
 
-## How analysis works
+## Share it with teammates or judges
 
-| Feature | Pipeline |
+Set `apiBaseUrl` in `app.json` to your public Render backend:
+
+```json
+"apiBaseUrl": "https://scamnomore.onrender.com"
+```
+
+That lets Expo Go devices reach the AI features, report endpoint, community
+endpoint, and chatbot from any network. A public URL alone does **not** make
+SQLite permanent: attach a paid Render Persistent Disk and set
+`REPORTS_DB_PATH=/var/data/scamnomore.sqlite`. The project contains the needed
+Blueprint configuration in `backend/render.yaml`; existing manually-created
+Render services need the disk added in the dashboard. Follow
+[the Render deployment guide](docs/DEPLOY_RENDER.md) before relying on shared
+reports or chats in a demo.
+
+`APP_SHARED_SECRET` adds a basic request guard but is bundled in the app, so it
+is not authentication. The backend also has a configurable service-wide
+burst/daily ceiling to cap public-demo spend even if that value is copied. Set
+the global limits for your OpenAI budget; neither mechanism is suitable for
+accounts, access control, or moderation.
+
+## Feature behavior
+
+| Feature | Behavior and limit |
 | --- | --- |
-| Take picture / Upload image | **`gpt-4o` vision** — reads all text in the image *and* judges visual scam cues (implausible discounts, fake urgency banners, fake news/brand mastheads, fake endorsements, fake login/payment screens, QR codes) |
-| Upload audio / Say what happened | **`whisper-1`** transcribes (auto language detection) → user edits the transcript → **`gpt-4o`** analyses it |
-| Upload video | **`whisper-1`** transcribes the **audio track** → **`gpt-4o`** analyses it. No frame extraction; a silent video honestly reports "no speech detected" |
-| Chatbot | **`gpt-4o`** with conversation history and a Singapore-specific system prompt |
-
-Every result returns a calibrated `probability`, a `riskLevel`, the best-fit
-`scamType`, specific `reasons` citing the actual evidence, `advice`, and a
-`signals` object carrying the raw transcript/text so you can audit exactly what
-the model was shown.
-
-Media is POSTed as raw bytes with its `Content-Type` — no object storage, no
-presigned URLs, no multipart parsing. The API key never leaves the backend.
-
-## Screens (mapped to the wireframes)
-
-- **Home** — "Please select what to analyze": (1) take picture, (2) upload image,
-  (3) upload audio, (4) say what happened / record voice, (5) upload video.
-  Global **Chatbot** button + language switcher on every screen.
-- **Image / Voice / Video analysis** — results show a **speedometer gauge** with the
-  scam probability, the reasoning, the detected content, and what to do next.
-- **Search** — time period + optional keywords + "verified only" →
-  "Go statistics for your search" → **Statistics by Town**, top scam types, and a
-  scrollable case list.
-- **Report** — mandatory date (defaults to today), 200-word description, town and
-  scam-type pickers → writes into the **same dataset** as the 5,000 rows → shows a
-  thank-you + comforting message with the **1799 helpline**.
-- **Community** — pick a chat room by scam type → live chat session → post/exit.
-- **Chatbot** — reachable from anywhere.
+| Image analysis | Sends the selected image to the backend/OpenAI after consent. GIFs are uploaded as `image/gif`. |
+| Audio analysis | Selects actual audio documents (including MP3/M4A/WAV where supported), transcribes them, then lets the user review/edit the transcript before analysis. |
+| Video analysis | Transcribes the audio track only; it does not inspect video frames. A silent or unusable audio track returns **Unable to assess** rather than a safe result. |
+| Text/chatbot | Sends the user-entered text to the backend/OpenAI. Chatbot answers are awareness guidance, not official advice. |
+| Report | Persists an unverified, privacy-minimized search record only after the backend confirms the write. Descriptions are not returned in the shared search response. |
+| Community | Stores anonymous room messages in SQLite, reloads them on room entry, and can load older history. There are no user identities, moderation controls, or instant push updates. |
 
 ## Architecture
 
-```
-App.tsx
- └─ I18nProvider (4 languages)            src/i18n
-     └─ NavigationContainer               src/navigation.tsx
-         ├─ Tabs: Home / Search / Report / Community
-         └─ Stack: Image / Voice / Video analysis, Chatbot
+```text
+Expo app
+  ├─ bundled 5,000-row mock dataset (search/statistics seed)
+  ├─ API client (analysis, chatbot, reports, community)
+  └─ consent gate before media/transcript processing
 
-src/
-  data/       scams.json (5000 rows) · scamStore (search, stats, addReport)
-  services/   api.ts      (backend client; no mocks, fails loudly)
-              analysis.ts (shared result types + risk bands)
-              media.ts    (expo-image-picker helpers)
-              config.ts   (reads app.json extra)
-  components/ ui.tsx, RiskGauge, ScreenHeader, AnalysisResultView, BackendBanner
-  screens/    Home, ImageAnalysis, VoiceAnalysis, VideoAnalysis,
-              Search, Report, Community, Chatbot
-
-backend/
-  src/lib/      openai.ts (vision/Whisper/chat) · prompts.ts · parse.ts
-                types.ts · http.ts
-  src/handlers/ analyzeImage · analyzeVideo · transcribe · analyzeText · chat
-  src/local-server.ts   (loads .env, routes requests)
+Node backend
+  ├─ OpenAI handlers (image, transcription, text, chatbot)
+  ├─ report/community HTTP handlers
+  └─ SQLite database (reports and anonymous messages)
+       └─ REPORTS_DB_PATH, /var/data/scamnomore.sqlite on Render
 ```
 
-### Design decisions
+## Data and operational limits
 
-- **Expo Go compatible**: only Expo-supported modules; no custom native code.
-- **No secrets on device**: the OpenAI key lives in `backend/.env` only.
-- **No mock analyzers**: an earlier build fabricated OCR text and presented it as
-  real, which is worse than failing. Now every verdict comes from OpenAI, and any
-  failure surfaces the real error. A unit test fails the build if mock sample
-  text or an API key ever appears in the app source.
-- **Shared dataset for reports**: `scamStore.addReport` appends user reports to the
-  in-memory copy of the 5,000-row dataset, so reported cases appear in Search
-  immediately.
-- **Fail safe on bad model output**: probabilities are validated and clamped; a
-  model returning `1.5` clamps *up* to 1 rather than being read as `0.015`
-  (which would flip an extreme verdict to "safe").
+- New reports are deliberately unverified and can be publicly searchable when
+  the default **verified only** Search filter is turned off. They are not
+  reviewed, deduplicated, or validated by an authority.
+- Community messages are public to app users and unmoderated. Do not post
+  personal details, accusations, evidence, or emergency reports there.
+- Persistent SQLite on Render is appropriate for this single-instance demo.
+  It is not a multi-instance, highly available, or audit-grade database design.
+- Render's free/default filesystem is ephemeral. Without a persistent disk,
+  reports and community messages can disappear after a restart or deployment.
+- The app accepts media files up to 64 MB, then the backend extracts/compresses
+  audio before sending it to Whisper (whose resulting upload must be at most
+  25 MB). Video analysis is based on audio, so a purely visual video should
+  instead be checked with an image/screenshot flow.
+- The app does not claim model calibration, verified data provenance,
+  auditability, live moderation, or a real-time chat service.
 
-## The 5,000-row dataset
+## Dataset development
 
-`src/data/scams.json` holds 5,000 verified records across 14 scam types and 40
-Singapore towns: `id, dateReported, scamType, keywords[], town, specificPlace,
-source, verified, year`.
+`src/data/scams.json` is the project's generated mock dataset. Regenerate it
+for demo use with:
 
-- To use a **real CSV export**, drop it at `scripts/ScamInfoDB-5000.csv` and run
-  `node scripts/generateDataset.js` (RFC-4180-aware parser for the quoted
-  `Keywords` column).
-- To regenerate the bundled dataset: `node scripts/buildMockDataset.js`.
+```powershell
+node scripts/buildMockDataset.js
+```
 
-## Testing
-
-**64 tests** — 36 app + 28 backend:
-
-- Dataset integrity (5000 rows, required fields), search filters, stats
-  aggregation, shared-table reporting, keyword extraction
-- Speedometer gauge geometry (angle mapping, arc paths, band/threshold agreement)
-- Content-type detection, risk-band thresholds
-- Backend: LLM JSON extraction (fenced, prose-wrapped, nested, escaped quotes),
-  probability validation and clamping, prompt construction, Whisper filename
-  derivation
-- Guards that no mock analyzer or API key can reappear in the app source
-
-## Limitations
-
-- Analysis is AI-assisted awareness, not a verdict. Users are pointed to **1799**.
-- **Whisper caps uploads at 25 MB**; long videos must be trimmed.
-- Video analysis reads the **audio track only** — a purely visual scam video is
-  better checked by screenshotting it and using the image flow.
-- Expo Go cannot pick arbitrary audio files; the picker accepts library media.
-  A production build can add `expo-document-picker`.
-- Full WCAG conformance requires manual testing with assistive technologies.
+Do not present the generated records or their verification labels as official
+Singapore scam case data.

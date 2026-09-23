@@ -1,5 +1,5 @@
 import { AUTH_HEADER, authEnabled, checkAuth } from '../lib/auth';
-import { _resetRateLimits, checkRateLimit, clientIdFrom } from '../lib/rateLimit';
+import { _resetRateLimits, checkGlobalRateLimit, checkRateLimit, clientIdFrom } from '../lib/rateLimit';
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -7,12 +7,15 @@ const ORIGINAL_ENV = { ...process.env };
 // be in the developer's / CI's environment.
 const BURST_MAX = 15;
 const DAILY_MAX = 200;
+const GLOBAL_DAILY_MAX = 20;
 
 beforeEach(() => {
   delete process.env.APP_SHARED_SECRET;
   process.env.RATE_LIMIT_BURST_MAX = String(BURST_MAX);
   process.env.RATE_LIMIT_BURST_WINDOW_MS = '60000';
   process.env.RATE_LIMIT_DAILY_MAX = String(DAILY_MAX);
+  process.env.RATE_LIMIT_GLOBAL_BURST_MAX = '60';
+  process.env.RATE_LIMIT_GLOBAL_DAILY_MAX = String(GLOBAL_DAILY_MAX);
   _resetRateLimits();
 });
 
@@ -109,17 +112,27 @@ describe('rate limiting', () => {
     expect(blocked.allowed).toBe(false);
     expect(blocked.reason).toMatch(/Daily limit/);
   });
+
+  it('enforces a service-wide cap independent of caller identifiers', () => {
+    const t0 = 3_000_000;
+    for (let i = 0; i < GLOBAL_DAILY_MAX; i++) {
+      expect(checkGlobalRateLimit(t0)).toMatchObject({ allowed: true });
+    }
+    const blocked = checkGlobalRateLimit(t0);
+    expect(blocked.allowed).toBe(false);
+    expect(blocked.reason).toMatch(/Service daily limit/);
+  });
 });
 
 describe('clientIdFrom', () => {
-  it('prefers the first x-forwarded-for entry (the real client behind Render)', () => {
+  it('ignores caller-controlled x-forwarded-for', () => {
     expect(clientIdFrom({ 'x-forwarded-for': '203.0.113.7, 10.0.0.1' }, '10.0.0.1')).toBe(
-      '203.0.113.7'
+      '10.0.0.1'
     );
   });
 
-  it('handles a header array', () => {
-    expect(clientIdFrom({ 'x-forwarded-for': ['198.51.100.2'] }, '10.0.0.1')).toBe('198.51.100.2');
+  it('also ignores a forwarded-header array', () => {
+    expect(clientIdFrom({ 'x-forwarded-for': ['198.51.100.2'] }, '10.0.0.1')).toBe('10.0.0.1');
   });
 
   it('falls back to the socket address', () => {

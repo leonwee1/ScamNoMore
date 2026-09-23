@@ -14,3 +14,10 @@ samples/
 *.m4a
 *.mp3
 *.wav
+
+# Local SQLite state (including its WAL companion files) must never be deployed
+# from Git or treated as a source fixture.
+data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

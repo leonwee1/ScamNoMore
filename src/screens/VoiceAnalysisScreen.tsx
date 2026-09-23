@@ -9,10 +9,11 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnalysisResultView } from '../components/AnalysisResultView';
+import { useMediaPrivacyConsent } from '../components/MediaPrivacyConsent';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Button, Card, Muted, SubHeading } from '../components/ui';
 import { useI18n } from '../i18n';
-import { AnalysisResult } from '../services/analysis';
+import { AnalysisResult, unableToAssessResult } from '../services/analysis';
 import { api, MAX_MEDIA_MB } from '../services/api';
 import { pickAudio } from '../services/media';
 import { colors, font, radius, spacing } from '../theme';
@@ -37,20 +38,23 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { requestConsent, consentDialog } = useMediaPrivacyConsent();
 
-  const transcribe = async (uri: string) => {
+  const transcribe = async (uri: string, contentType?: string) => {
     setBusy(true);
     setError(null);
+    setResult(null);
     try {
       // Pass the selected UI language so Whisper decodes in that language.
       // Left to auto-detect it judges from roughly the first 30 seconds and
       // returns Malay text for short or accented English.
-      const { text, noSpeechDetected } = await api.transcribeAudio(uri, lang);
+      const { text, noSpeechDetected } = await api.transcribeAudio(uri, lang, contentType);
       setTranscript(text);
       if (noSpeechDetected) {
-        // Say so plainly. Whisper invents fluent text for silent audio, so an
-        // empty transcript here is the honest result, not a failure to explain.
-        setError(`${t('analyze.noSpeech.reason')} ${t('analyze.noSpeech.adviceVoice')}`);
+        // This is a real result state, not a form error: Whisper invents fluent
+        // text for silence, so a blank transcript must never turn into a green
+        // 0% gauge or leave the user without an explanation.
+        setResult(unableToAssessResult('voice', 'no-speech'));
       }
     } catch (e) {
       setError(
@@ -61,12 +65,16 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     }
   };
 
+  const requestTranscription = (uri: string, contentType?: string) => {
+    requestConsent(() => transcribe(uri, contentType));
+  };
+
   const toggleRecording = async () => {
     try {
       if (recorderState.isRecording) {
         await recorder.stop();
         const uri = recorder.uri;
-        if (uri) await transcribe(uri);
+        if (uri) requestTranscription(uri);
         return;
       }
       const perm = await AudioModule.requestRecordingPermissionsAsync();
@@ -84,12 +92,12 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
 
   const upload = async () => {
     setError(null);
-    const uri = await pickAudio();
-    if (!uri) {
+    const picked = await pickAudio();
+    if (!picked) {
       setError(t('analyze.noAudio'));
       return;
     }
-    await transcribe(uri);
+    requestTranscription(picked.uri, picked.mimeType);
   };
 
   // In upload mode, open the file picker straight away — the user already chose
@@ -100,7 +108,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const analyze = async () => {
+  const analyzeConfirmed = async () => {
     if (!transcript.trim()) return;
     setLoading(true);
     setError(null);
@@ -112,6 +120,11 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const analyze = () => {
+    if (!transcript.trim()) return;
+    requestConsent(analyzeConfirmed);
   };
 
   // 'bottom' only: the native stack header already clears the status bar, so
@@ -168,6 +181,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
         {error ? <Muted style={{ color: colors.high }}>{error}</Muted> : null}
         {result ? <AnalysisResultView result={result} /> : null}
       </ScrollView>
+      {consentDialog}
     </SafeAreaView>
   );
 };

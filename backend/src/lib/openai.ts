@@ -98,7 +98,7 @@ function emptyCompletionError(res: OpenAI.Chat.Completions.ChatCompletion, what:
   const refusal = (choice?.message as { refusal?: string } | undefined)?.refusal;
 
   if (refusal) {
-    return new Error(`The model declined to analyse this ${what}: ${refusal}`);
+    return new Error(`The model declined to analyse this ${what}.`);
   }
   if (reason === 'content_filter') {
     return new Error(
@@ -119,7 +119,17 @@ function emptyCompletionError(res: OpenAI.Chat.Completions.ChatCompletion, what:
 
 function toResult(raw: string, signals: AnalysisSignals): AnalysisResult {
   const parsed = parseAnalysisJson(raw);
+  if (parsed.assessmentStatus === 'unable_to_assess') {
+    return {
+      assessmentStatus: 'unable_to_assess',
+      reasons: parsed.reasons,
+      advice: parsed.advice,
+      detectedText: signals.transcript?.trim() || signals.text?.trim() || undefined,
+      signals: { ...signals, unableToAssessReason: parsed.reason },
+    };
+  }
   return {
+    assessmentStatus: 'assessed',
     probability: parsed.probability,
     riskLevel: riskFromProbability(parsed.probability),
     scamType: parsed.scamType,
@@ -170,7 +180,9 @@ export async function analyzeImage(
       JSON.stringify(
         {
           finish_reason: res.choices[0]?.finish_reason,
-          refusal: (res.choices[0]?.message as { refusal?: string } | undefined)?.refusal,
+          // A refusal may echo content-related detail. Record only the fact
+          // that it happened, never model text or user-derived diagnostics.
+          refused: Boolean((res.choices[0]?.message as { refusal?: string } | undefined)?.refusal),
           usage: res.usage,
           mimeType,
           bytes: imageBytes.byteLength,
@@ -229,7 +241,9 @@ export async function transcribeMedia(
   const text = res.text?.trim() ?? '';
   const verdict = detectHallucination(text, res.segments ?? []);
   if (verdict.hallucinated) {
-    console.warn(`Discarded hallucinated transcript (${verdict.reason}): ${JSON.stringify(text)}`);
+    // Never log a user's words. The reason contains only aggregate diagnostics
+    // (counts/thresholds), so Render logs stay content-free.
+    console.warn(`Discarded likely hallucinated transcript (${verdict.reason ?? 'unknown signal'})`);
     return '';
   }
   return text;
@@ -333,11 +347,13 @@ export async function analyzeTextEvidence(
 
 /** Result for a video whose audio track contained no speech. */
 export function noSpeechResult(source: 'video' | 'voice'): AnalysisResult {
-  const signals: AnalysisSignals = { source, noSpeechDetected: true };
+  const signals: AnalysisSignals = {
+    source,
+    noSpeechDetected: true,
+    unableToAssessReason: 'no-speech',
+  };
   return {
-    probability: 0,
-    riskLevel: 'safe',
-    scamType: undefined,
+    assessmentStatus: 'unable_to_assess',
     reasons: [
       'No speech could be detected in the audio, so there was nothing to analyse.',
       source === 'video'

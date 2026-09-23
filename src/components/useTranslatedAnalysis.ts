@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useI18n } from '../i18n';
-import { AnalysisResult } from '../services/analysis';
+import { AnalysisResult, isAssessed } from '../services/analysis';
 import { api } from '../services/api';
 
 /**
@@ -50,9 +50,12 @@ export function useTranslatedAnalysis(result: AnalysisResult): TranslatedAnalysi
   }
 
   useEffect(() => {
-    // A no-speech result is rendered from the dictionaries, not from model
-    // prose, so it is already reactive and must not be sent for translation.
-    if (result.signals?.noSpeechDetected) return;
+    // All scoreless results are rendered from the dictionaries, not model prose,
+    // so they are already reactive and must never be sent for translation.
+    if (!isAssessed(result)) {
+      setTranslating(false);
+      return;
+    }
 
     const cached = cache.current.get(lang);
     if (cached) {

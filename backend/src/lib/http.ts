@@ -21,15 +21,23 @@ export interface Req {
 export interface Res {
   statusCode: number;
   body: unknown;
+  /** Optional response headers for an individual endpoint. */
+  headers?: Record<string, string>;
 }
 
 export const ok = (body: unknown): Res => ({ statusCode: 200, body });
+export const created = (body: unknown): Res => ({ statusCode: 201, body });
 export const badRequest = (message: string): Res => ({ statusCode: 400, body: { message } });
 
 export function serverError(err: unknown): Res {
-  const message = err instanceof Error ? err.message : 'Unexpected error';
-  console.error('Handler failed:', err);
-  return { statusCode: 500, body: { message } };
+  // Errors from transcription/model APIs can include user-supplied text. Keep
+  // Render diagnostics useful without placing media-derived content in logs.
+  const kind = err instanceof Error ? err.name : typeof err;
+  console.error(`Handler failed (${kind})`);
+  return {
+    statusCode: 500,
+    body: { message: 'The server could not process this request. Please try again.' },
+  };
 }
 
 /** Parse a JSON body. */

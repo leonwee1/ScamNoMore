@@ -1,4 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 
 /**
  * Expo-safe media helpers. All modules used here (expo-image-picker, and
@@ -6,12 +7,19 @@ import * as ImagePicker from 'expo-image-picker';
  * native code is required.
  */
 
-export async function pickImage(fromCamera: boolean): Promise<string | null> {
+export interface PickedImage {
+  uri: string;
+  /** Preserve the picker MIME when its cache URI has no useful extension. */
+  mimeType?: string;
+}
+
+export async function pickImage(fromCamera: boolean): Promise<PickedImage | null> {
   if (fromCamera) {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) return null;
     const res = await ImagePicker.launchCameraAsync({ quality: 0.7 });
-    return res.canceled ? null : res.assets[0].uri;
+    const asset = res.canceled ? undefined : res.assets[0];
+    return asset ? { uri: asset.uri, ...(asset.mimeType ? { mimeType: asset.mimeType } : {}) } : null;
   }
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!perm.granted) return null;
@@ -19,7 +27,8 @@ export async function pickImage(fromCamera: boolean): Promise<string | null> {
     mediaTypes: ['images'],
     quality: 0.7,
   });
-  return res.canceled ? null : res.assets[0].uri;
+  const asset = res.canceled ? undefined : res.assets[0];
+  return asset ? { uri: asset.uri, ...(asset.mimeType ? { mimeType: asset.mimeType } : {}) } : null;
 }
 
 export async function pickVideo(): Promise<string | null> {
@@ -33,16 +42,19 @@ export async function pickVideo(): Promise<string | null> {
   return res.canceled ? null : res.assets[0].uri;
 }
 
-/** Pick an audio/document file. Falls back to library video if unavailable. */
-export async function pickAudio(): Promise<string | null> {
-  // expo-image-picker cannot pick pure audio; in Expo Go we accept a
-  // video/audio asset from the library. A production build would add
-  // expo-document-picker for arbitrary audio files.
-  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!perm.granted) return null;
-  const res = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images', 'videos'],
-    quality: 0.7,
+export interface PickedAudio {
+  uri: string;
+  /** DocumentPicker's MIME is more reliable than a cache URI's extension. */
+  mimeType?: string;
+}
+
+/** Pick an actual audio file in Expo Go (MP3, M4A, WAV, or WebM). */
+export async function pickAudio(): Promise<PickedAudio | null> {
+  const res = await DocumentPicker.getDocumentAsync({
+    type: ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/x-wav', 'audio/webm'],
+    copyToCacheDirectory: true,
+    multiple: false,
   });
-  return res.canceled ? null : res.assets[0].uri;
+  const asset = res.canceled ? undefined : res.assets[0];
+  return asset ? { uri: asset.uri, ...(asset.mimeType ? { mimeType: asset.mimeType } : {}) } : null;
 }
