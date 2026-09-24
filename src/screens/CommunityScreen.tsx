@@ -2,12 +2,15 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
+  Text,
   TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BrandMark } from '../components/BrandMark';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { useTranslatedGuidance } from '../components/useTranslatedGuidance';
 import { WheelPicker } from '../components/WheelPicker';
@@ -45,6 +48,8 @@ export const CommunityScreen: React.FC = () => {
     return types[1] ?? types[0];
   });
   const guidance = useTranslatedGuidance(room);
+  const [aboutOpen, setAboutOpen] = useState(true);
+  const [handlingOpen, setHandlingOpen] = useState(true);
   const [joined, setJoined] = useState(false);
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
   const [nextBefore, setNextBefore] = useState<CommunityMessageCursor | undefined>();
@@ -78,6 +83,8 @@ export const CommunityScreen: React.FC = () => {
     setMessages([]);
     setNextBefore(undefined);
     setDraft('');
+    setAboutOpen(true);
+    setHandlingOpen(true);
     setJoined(true);
     void loadMessages(room);
   };
@@ -122,13 +129,40 @@ export const CommunityScreen: React.FC = () => {
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           >
-            <ScreenHeader title={t('tab.community')} />
+            <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
             <Card>
               <SubHeading>
                 {t('community.youAreIn')}: {domain.scamType(room)} {t('community.roomSuffix')}
               </SubHeading>
               <Muted style={styles.publicNotice}>{t('community.publicNotice')}</Muted>
             </Card>
+
+            {guidance ? (
+              <Card style={styles.guidanceCard}>
+                <Pressable
+                  style={styles.guidanceSectionHeader}
+                  onPress={() => setAboutOpen((open) => !open)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: aboutOpen }}
+                >
+                  <Muted style={styles.guidanceTitle}>{t('community.aboutScam')}</Muted>
+                  <Text style={styles.guidanceChevron}>{aboutOpen ? '⌃' : '›'}</Text>
+                </Pressable>
+                {aboutOpen ? <Body style={styles.guidanceBody}>{guidance.what}</Body> : null}
+
+                <Pressable
+                  style={styles.guidanceSectionHeader}
+                  onPress={() => setHandlingOpen((open) => !open)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: handlingOpen }}
+                >
+                  <Muted style={styles.guidanceTitle}>{t('community.howToHandle')}</Muted>
+                  <Text style={styles.guidanceChevron}>{handlingOpen ? '⌃' : '›'}</Text>
+                </Pressable>
+                {handlingOpen ? <Body style={styles.guidanceBody}>{guidance.how}</Body> : null}
+                {guidance.translating ? <Muted>{t('analyze.translating')}</Muted> : null}
+              </Card>
+            ) : null}
 
             {chatError ? <Muted style={styles.error}>{chatError}</Muted> : null}
             {loadingMessages && messages.length === 0 ? <Muted>{t('community.loading')}</Muted> : null}
@@ -174,7 +208,7 @@ export const CommunityScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title={t('tab.community')} showControls />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
         <Card>
           <SubHeading>{t('community.pickRoom')}</SubHeading>
           <WheelPicker
@@ -256,7 +290,20 @@ const styles = StyleSheet.create({
   },
   bubbleSelf: { backgroundColor: colors.primary, alignSelf: 'flex-end' },
   guidanceGap: { marginTop: spacing.sm, gap: spacing.xs },
-  publicNotice: { color: colors.medium },
+  guidanceCard: { gap: spacing.sm },
+  guidanceSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  guidanceTitle: { color: colors.primary, fontWeight: '800' },
+  guidanceChevron: { color: colors.primary, fontSize: 22, lineHeight: 22 },
+  guidanceBody: { color: colors.text, fontSize: font.body, lineHeight: 21 },
+  // Darker amber keeps the safety notice distinct while meeting readable
+  // contrast on the light card surface.
+  publicNotice: { color: '#7A4D00', fontWeight: '700' },
   error: { color: colors.high },
   input: {
     borderWidth: 1,

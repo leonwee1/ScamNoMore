@@ -3,13 +3,17 @@
  * Mobile-first: generous touch targets, high-contrast risk colors.
  */
 export const colors = {
-  bg: '#0B1B2B',
-  surface: '#12293E',
-  surfaceAlt: '#1B3A55',
-  primary: '#2EA6FF',
-  text: '#F2F6FA',
-  textMuted: '#9DB2C6',
-  border: '#244763',
+  // Light, calm surfaces keep the app readable without the heavy dark-blue
+  // blocks that made the previous UI feel dense. The darker text maintains
+  // contrast for older users and the teal accent is used consistently for
+  // actions, links, and selected navigation.
+  bg: '#F3F8F7',
+  surface: '#FFFFFF',
+  surfaceAlt: '#E6F6F2',
+  primary: '#0B9F93',
+  text: '#123C4A',
+  textMuted: '#607A82',
+  border: '#D7E5E3',
   // Risk levels
   safe: '#28C76F',
   low: '#7ED957',

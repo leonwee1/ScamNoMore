@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnalysisResultView } from '../components/AnalysisResultView';
+import { BrandMark } from '../components/BrandMark';
 import { useMediaPrivacyConsent } from '../components/MediaPrivacyConsent';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { Button, Card, Muted } from '../components/ui';
@@ -63,8 +64,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* No title: the stack header above already names this screen. */}
-        <ScreenHeader />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
 
         <Card>
           {/* The group name now lives in the stack header, so repeating it here

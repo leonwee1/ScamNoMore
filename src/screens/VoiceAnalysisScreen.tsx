@@ -9,9 +9,10 @@ import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AnalysisResultView } from '../components/AnalysisResultView';
+import { BrandMark } from '../components/BrandMark';
 import { useMediaPrivacyConsent } from '../components/MediaPrivacyConsent';
 import { ScreenHeader } from '../components/ScreenHeader';
-import { Button, Card, Muted, SubHeading } from '../components/ui';
+import { Button, Card, Muted } from '../components/ui';
 import { useI18n } from '../i18n';
 import { AnalysisResult, unableToAssessResult } from '../services/analysis';
 import { api, MAX_MEDIA_MB } from '../services/api';
@@ -138,13 +139,9 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
-        {/* No title: the stack header above already names this screen. */}
-        <ScreenHeader />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
 
         <Card>
-          <SubHeading>
-            {mode === 'record' ? t('home.sayWhat') : t('home.uploadAudio')}
-          </SubHeading>
           {/* Only meaningful when the user is choosing an existing file. When
               recording in-app there is nothing to pick, and the app controls the
               format and length itself. */}

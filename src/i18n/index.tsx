@@ -34,7 +34,18 @@ const en = {
   'chatbot.typing': 'Assistant is typing…',
   'chatbot.error': 'I had trouble responding. Please try again.',
 
-  'home.prompt': 'Select what to analyze:',
+  'home.prompt': 'What do you need?',
+  'home.greeting.morning': 'GOOD MORNING',
+  'home.greeting.afternoon': 'GOOD AFTERNOON',
+  'home.greeting.evening': 'GOOD EVENING',
+  'home.heroTitle': 'Stay one step ahead of scams.',
+  'home.heroSubtitle': 'Check messages, spot scam signs, and stay safe.',
+  'home.checkMessage': 'Check a message',
+  'home.checkMessageHint': 'Take a picture or upload an image.',
+  'home.checkVoice': 'Check a voice note',
+  'home.checkVoiceHint': 'Upload audio or tell us what happened.',
+  'home.checkVideo': 'Check a video',
+  'home.checkVideoHint': 'Review suspicious spoken content.',
   'home.text.group': 'Text (message, email, advertisement)',
   'home.takePicture': 'Take picture',
   'home.uploadImage': 'Upload image file',
@@ -47,7 +58,7 @@ const en = {
   'home.viewAllCases': 'View all cases',
   'home.cautionTitle': 'Never share confidential details',
   'home.caution':
-    'Never share OTPs, NRIC numbers, passwords, Singpass details or full card numbers. Do not include them in uploads. Treat unexpected requests for these details as suspicious and verify through an official channel.',
+    'Never share OTPs, NRIC numbers, passwords, Singpass details or full card numbers. Remove them before uploading.',
 
   'analyze.startAnalyzing': 'Start analyzing',
   // Idle label only. Once recording starts the button switches to
@@ -164,10 +175,11 @@ const en = {
   'report.selectType': 'Select a scam type',
   'report.thankYou':
     'Thank you for reporting the incident. Your reporting will help more people to safeguard themselves against scams.',
-  // {helpline} is highlighted at render time; see components/ComfortNote.tsx.
-  'report.comfort':
-    'If you were scammed, make a police report at your nearest neighbourhood police station. For a confidential chat, call the {helpline}.',
+  'report.comfort': 'Have you seen, received, or experienced a suspected scam?',
+  'report.supporting': 'Your report can help identify patterns and warn others.',
+  'report.helplinePrompt': 'Need advice? Call the',
   'report.helpline': '1799 Helpline',
+  'report.callHelpline': 'Call 1799',
   'report.submittedAgain': 'You can file another report below.',
 
   'community.title': 'Community',
@@ -236,7 +248,18 @@ const zh: Dict = {
   'chatbot.typing': '助手正在输入…',
   'chatbot.error': '回应时出现问题，请再试一次。',
 
-  'home.prompt': '请选择要分析的内容：',
+  'home.prompt': '您需要什么帮助？',
+  'home.greeting.morning': '早上好',
+  'home.greeting.afternoon': '下午好',
+  'home.greeting.evening': '晚上好',
+  'home.heroTitle': '防诈骗，领先一步。',
+  'home.heroSubtitle': '检查信息，识别诈骗迹象，保护自己。',
+  'home.checkMessage': '检查信息',
+  'home.checkMessageHint': '拍照或上传图片。',
+  'home.checkVoice': '检查语音',
+  'home.checkVoiceHint': '上传音频或描述发生的事情。',
+  'home.checkVideo': '检查视频',
+  'home.checkVideoHint': '检查可疑的语音内容。',
   'home.text.group': '文字（短信、电邮、广告）',
   'home.takePicture': '拍照',
   'home.uploadImage': '上传图片',
@@ -249,7 +272,7 @@ const zh: Dict = {
   'home.viewAllCases': '查看所有案例',
   'home.cautionTitle': '切勿透露机密资料',
   'home.caution':
-    '切勿透露一次性密码（OTP）、身份证号码、密码、Singpass 资料或完整信用卡号码。上传的内容也不要包含这些资料。对这些资料的意外索取要提高警惕，并通过官方渠道核实。',
+    '切勿透露一次性密码（OTP）、身份证号码、密码、Singpass 资料或完整信用卡号码。上传前请先删除这些资料。',
 
   'analyze.startAnalyzing': '开始分析',
   'analyze.startRecording': '开始录音',
@@ -354,9 +377,11 @@ const zh: Dict = {
   'report.selectTown': '请选择区域',
   'report.selectType': '请选择诈骗类型',
   'report.thankYou': '感谢您举报此事件。您的举报将帮助更多人防范诈骗。',
-  'report.comfort':
-    '如果您被骗，请到最近的邻里警岗报警。如需保密倾谈，请致电{helpline}。',
+  'report.comfort': '您是否看见、收到或怀疑有诈骗活动？',
+  'report.supporting': '您的举报可以帮助发现诈骗模式并提醒他人。',
+  'report.helplinePrompt': '需要建议？请致电',
   'report.helpline': '1799 热线',
+  'report.callHelpline': '致电 1799',
   'report.submittedAgain': '您可以在下方提交另一份举报。',
 
   'community.title': '社区',
@@ -415,7 +440,18 @@ const ms: Dict = {
   'chatbot.typing': 'Pembantu sedang menaip…',
   'chatbot.error': 'Saya menghadapi masalah untuk menjawab. Sila cuba lagi.',
 
-  'home.prompt': 'Sila pilih apa untuk dianalisis:',
+  'home.prompt': 'Apa yang anda perlukan?',
+  'home.greeting.morning': 'SELAMAT PAGI',
+  'home.greeting.afternoon': 'SELAMAT PETANG',
+  'home.greeting.evening': 'SELAMAT MALAM',
+  'home.heroTitle': 'Selangkah di hadapan penipuan.',
+  'home.heroSubtitle': 'Semak mesej, kenal pasti tanda penipuan dan kekal selamat.',
+  'home.checkMessage': 'Semak mesej',
+  'home.checkMessageHint': 'Ambil gambar atau muat naik imej.',
+  'home.checkVoice': 'Semak nota suara',
+  'home.checkVoiceHint': 'Muat naik audio atau ceritakan apa berlaku.',
+  'home.checkVideo': 'Semak video',
+  'home.checkVideoHint': 'Semak kandungan suara yang mencurigakan.',
   'home.text.group': 'Teks (mesej, e-mel, iklan)',
   'home.takePicture': 'Ambil gambar',
   'home.uploadImage': 'Muat naik imej',
@@ -428,7 +464,7 @@ const ms: Dict = {
   'home.viewAllCases': 'Lihat semua kes',
   'home.cautionTitle': 'Jangan kongsi maklumat sulit',
   'home.caution':
-    'Jangan kongsi OTP, nombor NRIC, kata laluan, butiran Singpass atau nombor kad penuh. Jangan sertakan maklumat ini dalam muat naik. Anggap permintaan luar jangka sebagai mencurigakan dan sahkan melalui saluran rasmi.',
+    'Jangan kongsi OTP, nombor NRIC, kata laluan, butiran Singpass atau nombor kad penuh. Padamkan maklumat ini sebelum memuat naik.',
 
   'analyze.startAnalyzing': 'Mula analisis',
   'analyze.startRecording': 'Mula rakaman suara',
@@ -539,9 +575,11 @@ const ms: Dict = {
   'report.selectType': 'Pilih jenis penipuan',
   'report.thankYou':
     'Terima kasih kerana melaporkan insiden ini. Laporan anda akan membantu lebih ramai orang melindungi diri daripada penipuan.',
-  'report.comfort':
-    'Jika anda diperdaya, buat laporan polis di balai polis kejiranan terdekat. Untuk perbualan sulit, hubungi {helpline}.',
+  'report.comfort': 'Pernahkah anda melihat, menerima atau mengesyaki penipuan?',
+  'report.supporting': 'Laporan anda boleh membantu mengenal pasti corak dan memberi amaran kepada orang lain.',
+  'report.helplinePrompt': 'Perlukan nasihat? Hubungi',
   'report.helpline': 'Talian 1799',
+  'report.callHelpline': 'Hubungi 1799',
   'report.submittedAgain': 'Anda boleh hantar laporan lain di bawah.',
 
   'community.title': 'Komuniti',
@@ -608,7 +646,18 @@ const ta: Dict = {
   'chatbot.typing': 'உதவியாளர் தட்டச்சு செய்கிறார்…',
   'chatbot.error': 'பதிலளிப்பதில் சிக்கல் ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.',
 
-  'home.prompt': 'பகுப்பாய்வு செய்ய வேண்டியதைத் தேர்ந்தெடுக்கவும்:',
+  'home.prompt': 'உங்களுக்கு என்ன தேவை?',
+  'home.greeting.morning': 'காலை வணக்கம்',
+  'home.greeting.afternoon': 'மதிய வணக்கம்',
+  'home.greeting.evening': 'மாலை வணக்கம்',
+  'home.heroTitle': 'மோசடிகளை விட ஒரு படி முன்னால் இருங்கள்.',
+  'home.heroSubtitle': 'செய்திகளைச் சரிபார்த்து, மோசடி அறிகுறிகளை அறிந்து பாதுகாப்பாக இருங்கள்.',
+  'home.checkMessage': 'செய்தியைச் சரிபார்க்கவும்',
+  'home.checkMessageHint': 'படம் எடுக்கவும் அல்லது படத்தைப் பதிவேற்றவும்.',
+  'home.checkVoice': 'குரல் குறிப்பைச் சரிபார்க்கவும்',
+  'home.checkVoiceHint': 'ஆடியோவைப் பதிவேற்றவும் அல்லது நடந்ததைச் சொல்லவும்.',
+  'home.checkVideo': 'வீடியோவைச் சரிபார்க்கவும்',
+  'home.checkVideoHint': 'சந்தேகமான பேச்சு உள்ளடக்கத்தைச் சரிபார்க்கவும்.',
   'home.text.group': 'உரை (செய்தி, மின்னஞ்சல், விளம்பரம்)',
   'home.takePicture': 'படம் எடு',
   'home.uploadImage': 'படத்தை பதிவேற்று',
@@ -621,7 +670,7 @@ const ta: Dict = {
   'home.viewAllCases': 'அனைத்து வழக்குகளையும் காண்க',
   'home.cautionTitle': 'ரகசியத் தகவல்களைப் பங்கிடாதீர்கள்',
   'home.caution':
-    'OTP, NRIC எண், கடவுச்சொல், Singpass விவரங்கள் அல்லது முழு அட்டை எண்களைப் பகிர வேண்டாம். பதிவேற்றும் உள்ளடக்கத்திலும் இவற்றைச் சேர்க்காதீர்கள். எதிர்பாராத கோரிக்கைகளை சந்தேகமாகக் கருதி அதிகாரப்பூர்வ வழியில் சரிபார்க்கவும்.',
+    'OTP, NRIC எண், கடவுச்சொல், Singpass விவரங்கள் அல்லது முழு அட்டை எண்களைப் பகிர வேண்டாம். பதிவேற்றும் முன் இவற்றை நீக்கவும்.',
 
   'analyze.startAnalyzing': 'பகுப்பாய்வைத் தொடங்கு',
   'analyze.startRecording': 'குரல் பதிவைத் தொடங்கு',
@@ -732,9 +781,11 @@ const ta: Dict = {
   'report.selectType': 'மோசடி வகையைத் தேர்ந்தெடுக்கவும்',
   'report.thankYou':
     'சம்பவத்தைப் புகாரளித்ததற்கு நன்றி. உங்கள் புகார் மேலும் பலரை மோசடிகளிலிருந்து பாதுகாக்க உதவும்.',
-  'report.comfort':
-    'நீங்கள் மோசடிக்கு ஆளானால், அருகிலுள்ள அண்டை காவல் நிலையத்தில் புகார் அளிக்கவும். ரகசியமான உரையாடலுக்கு {helpline} ஐ அழைக்கவும்.',
+  'report.comfort': 'மோசடி நடப்பதை நீங்கள் பார்த்தீர்களா, பெற்றீர்களா அல்லது சந்தேகிக்கிறீர்களா?',
+  'report.supporting': 'உங்கள் புகார் முறைகளைக் கண்டறிந்து மற்றவர்களை எச்சரிக்க உதவும்.',
+  'report.helplinePrompt': 'ஆலோசனை வேண்டுமா? அழைக்கவும்',
   'report.helpline': '1799 உதவி எண்',
+  'report.callHelpline': '1799 ஐ அழைக்கவும்',
   'report.submittedAgain': 'கீழே மற்றொரு புகாரை சமர்ப்பிக்கலாம்.',
 
   'community.title': 'சமூகம்',

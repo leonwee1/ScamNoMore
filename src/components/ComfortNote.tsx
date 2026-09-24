@@ -1,43 +1,52 @@
 import React from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useI18n } from '../i18n';
-import { colors, font } from '../theme';
+import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
 import { Body } from './ui';
 
-/**
- * Reassurance for someone who has just been scammed, with the 1799 helpline
- * picked out.
- *
- * The helpline is the single most actionable thing in this message, so it is
- * rendered in the accent colour and bold rather than buried in a paragraph. The
- * copy carries a `{helpline}` token and is split around it at render time, which
- * keeps the emphasis working in every language regardless of where the phrase
- * falls in the sentence — in Chinese and Tamil it lands in a different position
- * than in English.
- */
-const TOKEN = '{helpline}';
-
+/** Inclusive reporting guidance with a prominent 1799 call action. */
 export const ComfortNote: React.FC = () => {
   const { t } = useI18n();
   const { scale } = useTextScale();
-  const helpline = t('report.helpline');
-  const text = t('report.comfort');
-
-  const at = text.indexOf(TOKEN);
-  // No token (e.g. a dictionary edit dropped it) — show the text as-is rather
-  // than losing the message entirely.
-  if (at === -1) return <Body>{text}</Body>;
 
   return (
-    <Body>
-      {text.slice(0, at)}
-      <Text style={[styles.helpline, { fontSize: scaled(font.body, scale) }]}>{helpline}</Text>
-      {text.slice(at + TOKEN.length)}
-    </Body>
+    <View style={styles.wrap}>
+      <Body style={styles.title}>{t('report.comfort')}</Body>
+      <Body style={styles.supporting}>{t('report.supporting')}</Body>
+      <View style={styles.helplineRow}>
+        <Body style={styles.helplineText}>
+          {t('report.helplinePrompt')}{' '}
+          <Text style={styles.helplineLabel}>{t('report.helpline')}</Text>
+        </Body>
+        <Pressable
+          onPress={() => Linking.openURL('tel:1799').catch(() => undefined)}
+          accessibilityRole="button"
+          accessibilityLabel={t('report.callHelpline')}
+          style={({ pressed }) => [styles.callButton, pressed && styles.callButtonPressed]}
+        >
+          <Text style={[styles.callText, { fontSize: scaled(font.small, scale) }]}>☎ {t('report.callHelpline')}</Text>
+        </Pressable>
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  helpline: { color: colors.primary, fontWeight: '800', fontSize: font.body },
+  wrap: { gap: spacing.sm },
+  title: { color: colors.text, fontWeight: '800' },
+  supporting: { color: colors.textMuted },
+  helplineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingTop: spacing.xs },
+  helplineText: { flex: 1, color: colors.text },
+  helplineLabel: { color: colors.primary, fontWeight: '800' },
+  callButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  callButtonPressed: { opacity: 0.82 },
+  callText: { color: colors.white, fontWeight: '800' },
 });

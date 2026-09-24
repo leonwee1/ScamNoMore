@@ -106,8 +106,8 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
         />
       ) : (
         <View style={styles.unableBox}>
-          <SubHeading>{label}</SubHeading>
-          <Muted>{t('analyze.unable.notSafe')}</Muted>
+          <SubHeading style={styles.unableTitle}>{label}</SubHeading>
+          <Muted style={styles.unableBody}>{t('analyze.unable.notSafe')}</Muted>
         </View>
       )}
       {assessed && result.scamType ? (
@@ -144,11 +144,13 @@ const styles = StyleSheet.create({
   },
   notice: { color: colors.medium },
   unableBox: {
-    backgroundColor: '#3B2A12',
-    borderColor: colors.medium,
+    backgroundColor: '#FFF6E2',
+    borderColor: '#DCA548',
     borderWidth: 1,
     borderRadius: 10,
     padding: spacing.md,
     gap: spacing.xs,
   },
+  unableTitle: { color: '#7A4D00' },
+  unableBody: { color: '#4B5C61' },
 });

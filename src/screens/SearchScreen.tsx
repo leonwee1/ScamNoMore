@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BrandMark } from '../components/BrandMark';
 import { Dropdown, DropdownOption } from '../components/Dropdown';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { SingaporeHeatmap } from '../components/SingaporeHeatmap';
@@ -114,7 +115,7 @@ export const SearchScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title={t('tab.search')} showControls />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
 
         <Card>
           <Dropdown

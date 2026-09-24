@@ -19,7 +19,7 @@ export const BrandMark: React.FC<{ size?: number }> = ({ size = 34 }) => (
     <Defs>
       <LinearGradient id="brandShield" x1="0" y1="0" x2="1" y2="1">
         <Stop offset="0" stopColor={colors.primary} />
-        <Stop offset="1" stopColor="#1B6FD1" />
+        <Stop offset="1" stopColor="#087A78" />
       </LinearGradient>
       <LinearGradient id="brandGloss" x1="0" y1="0" x2="0" y2="1">
         <Stop offset="0" stopColor={colors.white} stopOpacity="0.28" />

@@ -280,7 +280,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: 4,
     borderRadius: radius.sm,
-    backgroundColor: 'rgba(11,27,43,0.78)',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   pinText: { color: colors.text, fontSize: 10, fontWeight: '700' },
   legend: {

@@ -2,6 +2,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { BrandMark } from '../components/BrandMark';
 import { ComfortNote } from '../components/ComfortNote';
 import { Dropdown, DropdownOption } from '../components/Dropdown';
 import { ScreenHeader } from '../components/ScreenHeader';
@@ -123,7 +124,7 @@ export const ReportScreen: React.FC = () => {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-        <ScreenHeader title={t('report.title')} showControls />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
 
         {submitted ? (
           <View style={styles.successBox}>

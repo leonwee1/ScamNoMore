@@ -1,4 +1,4 @@
-import { DarkTheme, NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -10,9 +10,9 @@ import { TextScaleProvider } from './src/textScale';
 import { colors } from './src/theme';
 
 const navTheme = {
-  ...DarkTheme,
+  ...DefaultTheme,
   colors: {
-    ...DarkTheme.colors,
+    ...DefaultTheme.colors,
     background: colors.bg,
     card: colors.surface,
     text: colors.text,
@@ -55,7 +55,7 @@ export default function App() {
       <I18nProvider>
         <TextScaleProvider>
           <NavigationContainer theme={navTheme}>
-            <StatusBar style="light" />
+            <StatusBar style="dark" />
             <ReportsHydrator />
             <RootNavigator />
           </NavigationContainer>

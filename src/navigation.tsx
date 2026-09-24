@@ -1,7 +1,8 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { useI18n } from './i18n';
 import { ChatbotScreen } from './screens/ChatbotScreen';
 import { CommunityScreen } from './screens/CommunityScreen';
@@ -17,18 +18,28 @@ import { colors } from './theme';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-/**
- * Tab icon with an explicit selected state.
- *
- * `tabBarActiveTintColor` alone was not enough here: the icons are emoji, and an
- * emoji glyph ignores the text colour it is given, so the only thing that
- * changed on selection was the small label underneath. The active tab now gets a
- * filled pill behind its icon, a larger glyph, and full opacity, so the current
- * tab is obvious without relying on a colour difference at all.
- */
-const tabIcon = (emoji: string) => ({ focused }: { focused: boolean }) => (
+/** Small line icons render consistently instead of relying on platform emoji. */
+type TabIconKind = 'home' | 'search' | 'report' | 'community';
+
+const TabGlyph: React.FC<{ kind: TabIconKind; focused: boolean }> = ({ kind, focused }) => {
+  const common = {
+    fill: 'none' as const,
+    stroke: focused ? colors.primary : colors.textMuted,
+    strokeWidth: focused ? 2.2 : 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+  };
+  if (kind === 'home') return <Path d="M3 9.5 10 3l7 6.5v7H3z M7 17v-4h6v4" {...common} />;
+  if (kind === 'search') return <><Circle cx="8.2" cy="8.2" r="4.7" {...common} /><Path d="m11.8 11.8 4.2 4.2" {...common} /></>;
+  if (kind === 'report') return <><Rect x="4" y="2.8" width="11.5" height="14.4" rx="1.5" {...common} /><Path d="M7 7h5.5M7 10h5.5M7 13h3M14.5 5.2h3M16 3.7v3" {...common} /></>;
+  return <><Path d="M3 4.2h10.5a2 2 0 0 1 2 2v5.1a2 2 0 0 1-2 2H8l-3.5 3v-3H3a2 2 0 0 1-2-2V6.2a2 2 0 0 1 2-2Z" {...common} /><Path d="M5 8h5.5M5 10.5h3.5" {...common} /></>;
+};
+
+const tabIcon = (kind: TabIconKind) => ({ focused }: { focused: boolean }) => (
   <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-    <Text style={focused ? styles.iconActive : styles.iconIdle}>{emoji}</Text>
+    <Svg width={20} height={20} viewBox="0 0 20 20" accessibilityLabel={kind}>
+      <TabGlyph kind={kind} focused={focused} />
+    </Svg>
   </View>
 );
 
@@ -61,22 +72,22 @@ const Tabs: React.FC = () => {
       <Tab.Screen
         name="HomeTab"
         component={HomeScreen}
-        options={{ title: t('tab.home'), tabBarIcon: tabIcon('🏠') }}
+        options={{ title: t('tab.home'), tabBarIcon: tabIcon('home') }}
       />
       <Tab.Screen
         name="SearchTab"
         component={SearchScreen}
-        options={{ title: t('tab.search'), tabBarIcon: tabIcon('🔎') }}
+        options={{ title: t('tab.search'), tabBarIcon: tabIcon('search') }}
       />
       <Tab.Screen
         name="ReportTab"
         component={ReportScreen}
-        options={{ title: t('tab.report'), tabBarIcon: tabIcon('📝') }}
+        options={{ title: t('tab.report'), tabBarIcon: tabIcon('report') }}
       />
       <Tab.Screen
         name="CommunityTab"
         component={CommunityScreen}
-        options={{ title: t('tab.community'), tabBarIcon: tabIcon('👥') }}
+        options={{ title: t('tab.community'), tabBarIcon: tabIcon('community') }}
       />
     </Tab.Navigator>
   );
@@ -98,23 +109,30 @@ export const RootNavigator: React.FC = () => {
       }}
     >
       <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-      {/* Each header names the GROUP the user tapped from on Home ("Text",
-          "Voice", "Video") rather than the individual button, so the heading
-          matches the card they came from and reads the same in both modes. */}
+      {/* The native title follows the exact Home button that opened the flow;
+          the screen itself adds the shared ScamNoMore + Ask Hans row. */}
       <Stack.Screen
         name="ImageAnalysis"
         component={ImageAnalysisScreen}
-        options={{ title: t('home.text.group') }}
+        options={({ route }) => ({
+          title: (route.params as { mode?: string } | undefined)?.mode === 'camera'
+            ? t('home.takePicture')
+            : t('home.uploadImage'),
+        })}
       />
       <Stack.Screen
         name="VoiceAnalysis"
         component={VoiceAnalysisScreen}
-        options={{ title: t('home.voice.group') }}
+        options={({ route }) => ({
+          title: (route.params as { mode?: string } | undefined)?.mode === 'record'
+            ? t('home.sayWhat')
+            : t('home.uploadAudio'),
+        })}
       />
       <Stack.Screen
         name="VideoAnalysis"
         component={VideoAnalysisScreen}
-        options={{ title: t('home.video.group') }}
+        options={{ title: t('home.uploadVideo') }}
       />
       <Stack.Screen
         name="Chatbot"
@@ -126,9 +144,7 @@ export const RootNavigator: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  // Sized to fit the tab bar's default height alongside the label, now that the
-  // height is no longer pinned: 4pt padding + 26 icon + ~15 label ≈ 45, inside
-  // the standard 49pt bar.
+  // Sized to fit the tab bar's default height alongside the label.
   iconWrap: {
     width: 44,
     height: 26,
@@ -136,13 +152,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Filled pill marks the current tab. Emoji ignore tintColor, so without this
-  // the only cue was the small label text changing colour.
+  // A small mint pill marks the current tab without overpowering the label.
   iconWrapActive: {
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.primary,
   },
-  iconActive: { fontSize: 19 },
-  iconIdle: { fontSize: 17, opacity: 0.55 },
 });

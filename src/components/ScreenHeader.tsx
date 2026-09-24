@@ -7,9 +7,9 @@ import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
 
 /**
- * Global header shown on every screen: the language switcher (4 local languages),
- * text-size control, and Chatbot shortcut. The text-size control sits above the
- * Chatbot, which shares a row with the screen brand/title.
+ * Shared header with a Chatbot shortcut. The Home screen additionally opts into
+ * the compact utility strip (language selector + text-size slider) below the
+ * brand row. Other screens intentionally show only the Chatbot shortcut.
  *
  * `title` is OPTIONAL and should be omitted on any screen that already has a
  * native navigation header. Those screens were rendering the same text twice,
@@ -19,15 +19,36 @@ export const ScreenHeader: React.FC<{
   title?: string;
   /** Rendered immediately before the title, e.g. the app's logo on Home. */
   titleIcon?: React.ReactNode;
-  /** Main tabs show language and text-size controls; sub-pages do not. */
+  /** Home opts into the language and text-size utility strip. */
   showControls?: boolean;
-}> = ({ title, titleIcon, showControls = false }) => {
+  /** Optional label override used by the Home shortcut. */
+  chatLabel?: string;
+}> = ({ title, titleIcon, showControls = false, chatLabel }) => {
   const { lang, setLang, t } = useI18n();
   const { scale } = useTextScale();
   const navigation = useNavigation<any>();
 
   return (
     <View style={styles.wrap}>
+      <View style={styles.titleRow}>
+        <View style={styles.brandTitle}>
+          {titleIcon}
+          {title ? (
+            <Text style={[styles.title, { fontSize: scaled(font.h1, scale) }]} numberOfLines={1}>
+              {title}
+            </Text>
+          ) : null}
+        </View>
+        <Pressable
+          onPress={() => navigation.navigate('Chatbot')}
+          style={styles.chatBtn}
+          accessibilityRole="button"
+          accessibilityLabel={t('chatbot.title')}
+        >
+          <Text style={[styles.chatText, { fontSize: scaled(font.small, scale) }]}>✦ {chatLabel ?? t('chatbot.title')}</Text>
+        </Pressable>
+      </View>
+
       {showControls ? (
         <View style={styles.controlsRow}>
           <View style={styles.langRow}>
@@ -51,42 +72,27 @@ export const ScreenHeader: React.FC<{
               </Pressable>
             ))}
           </View>
-          <TextSizeSlider />
+          <TextSizeSlider dark />
         </View>
       ) : null}
-
-      <View style={styles.titleRow}>
-        <View style={styles.brandTitle}>
-          {titleIcon}
-          {title ? (
-            <Text style={[styles.title, { fontSize: scaled(font.h1, scale) }]} numberOfLines={1}>
-              {title}
-            </Text>
-          ) : null}
-        </View>
-        <Pressable
-          onPress={() => navigation.navigate('Chatbot')}
-          style={styles.chatBtn}
-          accessibilityRole="button"
-          accessibilityLabel={t('chatbot.title')}
-        >
-          <Text style={[styles.chatText, { fontSize: scaled(font.small, scale) }]}>💬 {t('chatbot.title')}</Text>
-        </Pressable>
-      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  wrap: { gap: spacing.sm, marginBottom: spacing.md },
+  wrap: { marginBottom: spacing.md, overflow: 'visible' },
   controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    // The compact slider is sized to keep this control row together even at
-    // the largest language-label setting.
+    marginTop: spacing.sm,
+    marginHorizontal: -spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: '#0C2233',
+    // Keep the compact slider on the same line as all four language buttons.
     flexWrap: 'nowrap',
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   titleRow: {
     flexDirection: 'row',
@@ -111,16 +117,16 @@ const styles = StyleSheet.create({
   chatText: { color: colors.primary, fontWeight: '700', fontSize: font.small },
   langRow: { flexDirection: 'row', gap: spacing.xs, flexShrink: 1 },
   lang: {
-    paddingHorizontal: 10,
-    minHeight: 40,
+    paddingHorizontal: 9,
+    minHeight: 36,
     justifyContent: 'center',
-    paddingVertical: 7,
+    paddingVertical: 6,
     borderRadius: radius.sm,
-    backgroundColor: colors.surface,
+    backgroundColor: '#102D43',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#31516A',
   },
-  langActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  langText: { color: colors.textMuted, fontSize: font.small, fontWeight: '700' },
+  langActive: { backgroundColor: '#2EA6FF', borderColor: '#2EA6FF' },
+  langText: { color: '#A9BDC9', fontSize: font.small, fontWeight: '700' },
   langTextActive: { color: colors.white },
 });

@@ -9,8 +9,8 @@ import {
   useTextScale,
 } from '../textScale';
 
-/** Compact, touch-friendly text-size control used below the Chatbot button. */
-export const TextSizeSlider: React.FC = () => {
+/** Compact, touch-friendly text-size control used in the Home utility row. */
+export const TextSizeSlider: React.FC<{ dark?: boolean }> = ({ dark = false }) => {
   const { scale, setScale } = useTextScale();
   const [trackWidth, setTrackWidth] = useState(0);
   const ratio = (scale - TEXT_SCALE_MIN) / (TEXT_SCALE_MAX - TEXT_SCALE_MIN);
@@ -47,7 +47,7 @@ export const TextSizeSlider: React.FC = () => {
         if (event.nativeEvent.actionName === 'increment') setScale(scale + TEXT_SCALE_STEP);
       }}
     >
-      <Text style={[styles.smallA, { fontSize: scaled(13, scale) }]}>A</Text>
+      <Text style={[styles.smallA, { fontSize: scaled(13, scale), color: dark ? '#F2F6FA' : colors.text }]}>A</Text>
       <View
         style={styles.trackTouchArea}
         onLayout={onLayout}
@@ -56,10 +56,10 @@ export const TextSizeSlider: React.FC = () => {
         onResponderGrant={(event) => updateFromTouch(event.nativeEvent.locationX)}
         onResponderMove={(event) => updateFromTouch(event.nativeEvent.locationX)}
       >
-        <View style={styles.track} />
-        <View style={[styles.thumb, { left: Math.max(0, thumbX - 9) }]} />
+        <View style={[styles.track, dark && styles.trackDark]} />
+        <View style={[styles.thumb, dark && styles.thumbDark, { left: Math.max(0, thumbX - 9) }]} />
       </View>
-      <Text style={[styles.largeA, { fontSize: scaled(22, scale) }]}>A</Text>
+      <Text style={[styles.largeA, { fontSize: scaled(22, scale), color: dark ? '#F2F6FA' : colors.text }]}>A</Text>
     </View>
   );
 };
@@ -78,12 +78,15 @@ const styles = StyleSheet.create({
   trackTouchArea: {
     // Compact enough to share a row with all four language buttons at the
     // largest text setting, while keeping a generous 32px-high touch area.
-    width: 96,
+    // Short enough to stay beside all four language buttons at the largest
+    // language label size, while retaining a comfortable touch target.
+    width: 72,
     height: 32,
     justifyContent: 'center',
     paddingHorizontal: 9,
   },
   track: { height: 4, borderRadius: radius.sm, backgroundColor: colors.textMuted, width: '100%' },
+  trackDark: { backgroundColor: '#9DB2C6' },
   thumb: {
     position: 'absolute',
     width: 18,
@@ -93,4 +96,5 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.bg,
   },
+  thumbDark: { backgroundColor: '#2EA6FF', borderColor: '#0C2233' },
 });

@@ -18,6 +18,15 @@ export function deviceToday(): string {
   return format(now);
 }
 
+/** Singapore uses UTC+8 year-round, so the Home greeting stays correct even
+ * when the device is configured for another timezone. */
+export function singaporeGreetingPeriod(): 'morning' | 'afternoon' | 'evening' {
+  const singaporeHour = (new Date().getUTCHours() + 8) % 24;
+  if (singaporeHour >= 5 && singaporeHour < 12) return 'morning';
+  if (singaporeHour >= 12 && singaporeHour < 18) return 'afternoon';
+  return 'evening';
+}
+
 /** Format a Date as YYYY-MM-DD using its LOCAL calendar fields. */
 function format(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -38,5 +47,12 @@ function format(d: Date): string {
 export function monthsAgo(months: number): string {
   const d = new Date();
   d.setMonth(d.getMonth() - months);
+  return format(d);
+}
+
+/** A calendar date a number of days before today, using local date fields. */
+export function daysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
   return format(d);
 }
