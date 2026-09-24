@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { useI18n } from '../i18n';
 import { colors, font } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 import { Body } from './ui';
 
 /**
@@ -19,6 +20,7 @@ const TOKEN = '{helpline}';
 
 export const ComfortNote: React.FC = () => {
   const { t } = useI18n();
+  const { scale } = useTextScale();
   const helpline = t('report.helpline');
   const text = t('report.comfort');
 
@@ -30,7 +32,7 @@ export const ComfortNote: React.FC = () => {
   return (
     <Body>
       {text.slice(0, at)}
-      <Text style={styles.helpline}>{helpline}</Text>
+      <Text style={[styles.helpline, { fontSize: scaled(font.body, scale) }]}>{helpline}</Text>
       {text.slice(at + TOKEN.length)}
     </Body>
   );

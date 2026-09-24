@@ -10,6 +10,7 @@ import { AnalysisResult, unableToAssessResult } from '../services/analysis';
 import { api, MAX_MEDIA_MB } from '../services/api';
 import { pickVideo } from '../services/media';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 /**
  * Video flow, laid out to match the audio screen: pick a file, the spoken audio
@@ -22,13 +23,14 @@ import { colors, font, radius, spacing } from '../theme';
  */
 export const VideoAnalysisScreen: React.FC = () => {
   const { t, lang } = useI18n();
+  const { scale } = useTextScale();
   const [uri, setUri] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { requestConsent, consentDialog } = useMediaPrivacyConsent();
+  const { requestConsent, resetConsent, consentDialog } = useMediaPrivacyConsent('video');
 
   /** Whisper on the video's audio track, into the editable box. */
   const transcribe = async (videoUri: string) => {
@@ -50,8 +52,8 @@ export const VideoAnalysisScreen: React.FC = () => {
     }
   };
 
-  const requestTranscription = (videoUri: string) => {
-    requestConsent(() => transcribe(videoUri));
+  const requestTranscription = (videoUri: string, forceConsent = false) => {
+    requestConsent(() => transcribe(videoUri), forceConsent);
   };
 
   const choose = async () => {
@@ -63,8 +65,9 @@ export const VideoAnalysisScreen: React.FC = () => {
       setError(t('analyze.noVideo'));
       return;
     }
+    resetConsent();
     setUri(picked);
-    requestTranscription(picked);
+    requestTranscription(picked, true);
   };
 
   // Open the picker straight away: the user already chose "Upload video file" on
@@ -112,7 +115,7 @@ export const VideoAnalysisScreen: React.FC = () => {
         <Card>
           <Muted>{t('analyze.transcribed')}</Muted>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { fontSize: scaled(16, scale), lineHeight: scaled(23, scale) }]}
             multiline
             value={transcript}
             onChangeText={setTranscript}
@@ -141,13 +144,14 @@ const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   // Matches the transcript box on the voice screen.
   input: {
-    minHeight: 120,
+    minHeight: 140,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.md,
     color: colors.text,
-    fontSize: font.body,
+    fontSize: 16,
+    lineHeight: 23,
     textAlignVertical: 'top',
     backgroundColor: colors.surfaceAlt,
   },

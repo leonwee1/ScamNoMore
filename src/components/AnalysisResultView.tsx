@@ -35,6 +35,18 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
   const insufficientEvidence = unableReason === 'insufficient-evidence';
   const source = result.signals?.source;
 
+  // A scoreless response should still identify the evidence whenever the
+  // analyzer has text to work with. This is especially important for audio and
+  // video: the transcript is visible above the result, but a vague fallback
+  // alone would not tell the user what was actually considered.
+  const evidenceText = !noSpeech && !assessed ? result.detectedText?.trim() : undefined;
+  const evidenceQuote = evidenceText
+    ? `${evidenceText.replace(/\s+/g, ' ').slice(0, 280)}${evidenceText.length > 280 ? '…' : ''}`
+    : null;
+  const evidenceReason = evidenceQuote
+    ? t('analyze.unable.evidenceReason', { quote: evidenceQuote })
+    : null;
+
   // Re-translates the model's prose when the user switches language, so the
   // findings never sit in a different language from the headings above them.
   const translated = useTranslatedAnalysis(result);
@@ -46,6 +58,7 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
           source === 'video' ? t('analyze.noSpeech.video') : t('analyze.noSpeech.voice'),
         ]
       : [
+          ...(evidenceReason ? [evidenceReason] : []),
           ...(result.reasons.length
             ? result.reasons
             : [
@@ -53,7 +66,6 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
                   ? t('analyze.unable.insufficientReason')
                   : t('analyze.unable.invalidReason'),
               ]),
-          t('analyze.unable.notSafe'),
         ]
     : translated.reasons;
 
@@ -79,7 +91,7 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
   ];
 
   return (
-    <Card>
+    <Card style={styles.resultCard}>
       <View style={styles.headerRow}>
         <SubHeading>{t('analyze.result')}</SubHeading>
         <SpeakButton passages={spokenPassages} onUnavailable={setSpeechNotice} />
@@ -122,6 +134,7 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
 };
 
 const styles = StyleSheet.create({
+  resultCard: { paddingTop: spacing.lg, paddingBottom: spacing.xl },
   section: { gap: spacing.xs, marginTop: spacing.sm },
   headerRow: {
     flexDirection: 'row',

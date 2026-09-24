@@ -17,6 +17,7 @@ import { useI18n } from '../i18n';
 import { useDomain } from '../i18n/useDomain';
 import { api, CommunityMessage, CommunityMessageCursor } from '../services/api';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 /** Keep a server-confirmed row exactly once when a refresh races a send. */
 function mergeMessages(
@@ -126,14 +127,7 @@ export const CommunityScreen: React.FC = () => {
               <SubHeading>
                 {t('community.youAreIn')}: {domain.scamType(room)} {t('community.roomSuffix')}
               </SubHeading>
-              <Muted>{t('community.liveSession')}</Muted>
               <Muted style={styles.publicNotice}>{t('community.publicNotice')}</Muted>
-              <Button
-                title={t('community.refresh')}
-                variant="secondary"
-                onPress={() => void loadMessages(room)}
-                loading={loadingMessages}
-              />
             </Card>
 
             {chatError ? <Muted style={styles.error}>{chatError}</Muted> : null}
@@ -166,7 +160,6 @@ export const CommunityScreen: React.FC = () => {
               />
             ) : null}
 
-            <Muted>{t('community.etiquette')}</Muted>
             <Button title={t('community.exit')} variant="secondary" onPress={exit} />
           </ScrollView>
 
@@ -181,10 +174,9 @@ export const CommunityScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title={t('tab.community')} />
+        <ScreenHeader title={t('tab.community')} showControls />
         <Card>
           <SubHeading>{t('community.pickRoom')}</SubHeading>
-          <Muted>{t('report.scamType')}</Muted>
           <WheelPicker
             options={allTypes.map((value) => ({ value, label: domain.scamType(value) }))}
             value={room}
@@ -218,10 +210,11 @@ const ChatInput: React.FC<{
   sending: boolean;
 }> = ({ value, onChange, onSend, sending }) => {
   const { t } = useI18n();
+  const { scale } = useTextScale();
   return (
     <View style={{ gap: spacing.sm }}>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { fontSize: scaled(font.body, scale), lineHeight: scaled(21, scale) }]}
         value={value}
         onChangeText={onChange}
         placeholder={t('community.typeMessage')}
@@ -244,7 +237,17 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
-  bubble: { borderRadius: radius.md, padding: spacing.md, maxWidth: '90%', gap: 2 },
+  bubble: {
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    maxWidth: '90%',
+    gap: spacing.xs,
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
   bubbleOther: {
     backgroundColor: colors.surface,
     borderWidth: 1,

@@ -74,6 +74,80 @@ const MAX_FIELD_CHARS = 100;
 const MAX_DESCRIPTION_CHARS = 4_000;
 const MAX_DESCRIPTION_WORDS = 200;
 const MAX_COMMUNITY_MESSAGE_CHARS = 500;
+
+/** Natural-looking starter conversations shown in each room on first startup. */
+const COMMUNITY_SEED_MESSAGES: Record<string, readonly string[]> = {
+  'Phishing Scam': [
+    'I received a message saying my bank account would be frozen unless I opened a link. I did not tap it.',
+    'That is a common phishing tactic. I checked the bank app directly and there was no alert at all.',
+    'Good call. For anything involving an account, I now use the number on my bank card instead of the message link.',
+  ],
+  'Investment Scam': [
+    'A Telegram group is promising guaranteed returns if I deposit at least $500 today. Has anyone seen this?',
+    'The guarantee and the rush are major red flags. Legitimate investments can lose value and do not need a same-day deposit.',
+    'They also asked me to pay a fee before withdrawing my “profits”. I stopped replying and reported the account.',
+  ],
+  'Job Scam': [
+    'A recruiter offered easy online tasks, but wants a deposit before I can receive the first assignment.',
+    'Do not pay to get paid. I would verify the company through its official website and contact details.',
+    'The recruiter kept changing the group name and would not arrange a proper interview, so I blocked the number.',
+  ],
+  'Romance Scam': [
+    'Someone I met online says they are overseas and needs an urgent loan for a medical bill.',
+    'Have you had a live video call with them? A sudden emergency followed by a money request is a familiar pattern.',
+    'We have never met in person. I will not send money or identity documents, even though the messages sound caring.',
+  ],
+  'E-commerce Scam': [
+    'The seller offered a new phone at half price and asked for PayNow before meeting. The listing disappeared after I asked questions.',
+    'Do not pay outside the platform or before checking the item. A very large discount can be a warning sign.',
+    'I reported the listing and saved the chat screenshots. The seller had copied photos from another shop.',
+  ],
+  'Government Officials Impersonation Scam': [
+    'The caller claimed to be from the police and said I must transfer money to a safe account to clear my name.',
+    'The police will not ask you to transfer money to protect an account. Hang up and call the official number yourself.',
+    'The caller became threatening when I asked for a case reference, so I ended the call and contacted 1799.',
+  ],
+  'Loan Scam': [
+    'A loan advertisement says approval is guaranteed, but asks for an upfront processing fee and my Singpass login.',
+    'Never share Singpass credentials or pay an upfront fee. Check that the lender is licensed through official sources.',
+    'I reported the advertisement. The “agent” also asked me to install an app from a link sent over WhatsApp.',
+  ],
+  'Fake Friend Call Scam': [
+    'I got a call from someone claiming to be a friend with a new number and asking me to send money urgently.',
+    'Call your friend back using the old saved number or another channel. Do not rely on the caller ID or new number.',
+    'I asked a personal question only my friend would know and then checked with their family. It was not them.',
+  ],
+  'Tech Support Scam': [
+    'A pop-up said my computer was infected and told me to call a support number immediately.',
+    'Close the pop-up and contact the device maker through its official website. Do not install remote-control software for a stranger.',
+    'The caller wanted access to my banking screen, so I disconnected and ran a trusted security check instead.',
+  ],
+  'Social Media Impersonation': [
+    'A second account using my colleague’s photo asked me to vote in a contest and send an OTP.',
+    'Verify through a separate channel. An OTP should never be shared for a social-media vote or contest.',
+    'The real colleague confirmed the account was fake and reported it. I removed the link from my messages too.',
+  ],
+  'Rental Scam': [
+    'The room looks attractive and cheap, but the “agent” wants a deposit before allowing a viewing.',
+    'Do not transfer a deposit before seeing the place and checking the agent and listing independently.',
+    'The photos were copied from an old listing in another neighbourhood. I reported it to the platform.',
+  ],
+  'Inheritance Scam': [
+    'An email says I inherited money from someone overseas, but I must pay a lawyer fee before the funds are released.',
+    'Unexpected inheritances that require advance fees are usually scams. Do not send money or identity documents.',
+    'The sender asked for my bank details and a copy of my passport, so I deleted the email and reported it.',
+  ],
+  'Lottery Scam': [
+    'I was told I won a prize in a draw I never entered and need to pay tax before collecting it.',
+    'A real prize does not require you to pay a fee through an unexpected message. Do not click the payment link.',
+    'The message used a familiar brand logo but came from a strange address. I checked the official website and found no such draw.',
+  ],
+  Others: [
+    'The message asks me to scan a QR code to “verify” my identity before a delivery can be completed.',
+    'I would verify the delivery in the official app instead. QR codes can lead to fake payment or login pages.',
+    'There is no matching order in my account, so I did not scan it and reported the message as suspicious.',
+  ],
+};
 // These are the canonical town values offered by the Expo report picker. Do
 // not let a modified public client publish arbitrary location text into Search.
 const SUPPORTED_TOWNS = [
@@ -146,9 +220,33 @@ function openDatabase(): Database.Database {
     UPDATE incident_reports SET keywords_json = '[]' WHERE keywords_json <> '[]';
   `);
 
+  seedCommunityMessages(next);
+
   database = next;
   openedPath = path;
   return next;
+}
+
+/** Insert deterministic starter rows without duplicating them on restart. */
+function seedCommunityMessages(db: Database.Database): void {
+  const insert = db.prepare(
+    `INSERT OR IGNORE INTO community_messages (id, room_key, body, created_at)
+     VALUES (@id, @room_key, @body, @created_at)`
+  );
+  const seed = db.transaction(() => {
+    for (const [roomKey, messages] of Object.entries(COMMUNITY_SEED_MESSAGES)) {
+      const slug = roomKey.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      messages.forEach((body, index) => {
+        insert.run({
+          id: `community-seed-${slug}-${index + 1}`,
+          room_key: roomKey,
+          body,
+          created_at: new Date(Date.now() - (messages.length - index) * 60_000).toISOString(),
+        });
+      });
+    }
+  });
+  seed();
 }
 
 /** Create/migrate the database at service startup (the Render disk is runtime-only). */

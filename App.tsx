@@ -6,6 +6,7 @@ import { scamStore } from './src/data/scamStore';
 import { I18nProvider } from './src/i18n';
 import { RootNavigator } from './src/navigation';
 import { api } from './src/services/api';
+import { TextScaleProvider } from './src/textScale';
 import { colors } from './src/theme';
 
 const navTheme = {
@@ -52,11 +53,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <I18nProvider>
-        <NavigationContainer theme={navTheme}>
-          <StatusBar style="light" />
-          <ReportsHydrator />
-          <RootNavigator />
-        </NavigationContainer>
+        <TextScaleProvider>
+          <NavigationContainer theme={navTheme}>
+            <StatusBar style="light" />
+            <ReportsHydrator />
+            <RootNavigator />
+          </NavigationContainer>
+        </TextScaleProvider>
       </I18nProvider>
     </SafeAreaProvider>
   );

@@ -19,7 +19,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { requestConsent, consentDialog } = useMediaPrivacyConsent();
+  const { requestConsent, resetConsent, consentDialog } = useMediaPrivacyConsent('image');
 
   const choose = async () => {
     setError(null);
@@ -29,6 +29,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
       setError(t('analyze.noImage'));
       return;
     }
+    resetConsent();
     setImage(picked);
   };
 

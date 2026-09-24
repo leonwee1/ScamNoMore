@@ -1,6 +1,6 @@
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ComfortNote } from '../components/ComfortNote';
 import { Dropdown, DropdownOption } from '../components/Dropdown';
@@ -13,6 +13,7 @@ import { DatePicker } from '../components/DatePicker';
 import { deviceToday, monthsAgo } from '../services/dates';
 import { api } from '../services/api';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 const MAX_WORDS = 200;
 const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
@@ -25,6 +26,7 @@ const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
 export const ReportScreen: React.FC = () => {
   const { t } = useI18n();
   const domain = useDomain();
+  const { scale } = useTextScale();
   const allTowns = useMemo(() => towns(), []);
   const allTypes = useMemo(() => scamTypes(), []);
 
@@ -112,25 +114,35 @@ export const ReportScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScreenHeader title={t('report.title')} />
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+        <ScreenHeader title={t('report.title')} showControls />
 
         {submitted ? (
           <View style={styles.successBox}>
             <Body style={styles.successTitle}>🙏 {t('report.thankYou')}</Body>
-            <ComfortNote />
             <Muted>{t('report.submittedAgain')}</Muted>
           </View>
         ) : null}
 
+        <Card>
+          <ComfortNote />
+        </Card>
+
         {submitError ? <Muted style={styles.error}>{submitError}</Muted> : null}
 
         <Card>
-          <Muted>{t('report.date')} *</Muted>
+          <View style={styles.requiredLabelRow}>
+            <Muted style={styles.requiredLabel}>{t('report.date')}</Muted>
+            <Muted>{t('search.required')}</Muted>
+          </View>
           {/* maxDate is today: an incident cannot be reported before it happens,
               and blocking it in the calendar is clearer than validating after
               the fact. */}
@@ -172,25 +184,23 @@ export const ReportScreen: React.FC = () => {
 
         <Card>
           <View style={styles.labelRow}>
-            <Muted>{t('report.description')} *</Muted>
+            <View style={styles.requiredLabelRow}>
+              <Muted style={styles.requiredLabel}>{t('report.description')}</Muted>
+              <Muted>{t('search.required')}</Muted>
+            </View>
             <Muted style={{ color: words > MAX_WORDS ? colors.high : colors.textMuted }}>
               {Math.max(0, MAX_WORDS - words)} {t('common.wordsLeft')}
             </Muted>
           </View>
           <TextInput
-            style={[styles.input, styles.textarea]}
+            style={[styles.input, styles.textarea, { fontSize: scaled(font.body, scale), lineHeight: scaled(21, scale) }]}
             value={description}
             onChangeText={setDescription}
             placeholder={t('report.descriptionPlaceholder')}
             placeholderTextColor={colors.textMuted}
             multiline
+            onFocus={() => requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }))}
           />
-        </Card>
-
-        {/* Same note as the confirmation above, so the helpline is visible
-            whether the user has submitted yet or not. */}
-        <Card>
-          <ComfortNote />
         </Card>
 
         <Button
@@ -199,14 +209,18 @@ export const ReportScreen: React.FC = () => {
           disabled={!valid || submitting}
           loading={submitting}
         />
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
+  requiredLabelRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+  requiredLabel: { color: colors.text, fontWeight: '800' },
   input: {
     borderWidth: 1,
     borderColor: colors.border,

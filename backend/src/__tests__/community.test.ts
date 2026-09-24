@@ -9,6 +9,7 @@ import {
   listCommunityMessages,
   ReportValidationError,
 } from '../lib/reportsDb';
+import { SCAM_TYPES } from '../lib/types';
 
 const originalDbPath = process.env.REPORTS_DB_PATH;
 let tempDir = '';
@@ -29,6 +30,14 @@ afterEach(() => {
 const input = { roomKey: 'Phishing Scam', text: 'Do not click the link. Call the bank directly.' };
 
 describe('SQLite community messages', () => {
+  it('has a distinct starter conversation in every room', () => {
+    for (const room of SCAM_TYPES) {
+      const messages = listCommunityMessages(room);
+      expect(messages.length).toBeGreaterThanOrEqual(3);
+      expect(new Set(messages.map((message) => message.text)).size).toBe(messages.length);
+    }
+  });
+
   it('survives a database reopen and remains in its own room', () => {
     const created = createCommunityMessage(input);
     createCommunityMessage({ roomKey: 'Job Scam', text: 'Never pay a deposit for a job.' });
@@ -36,9 +45,9 @@ describe('SQLite community messages', () => {
     // Simulates a Render restart before the user exits and re-enters the room.
     _closeReportsDbForTests();
     const phishing = listCommunityMessages('Phishing Scam');
-    expect(phishing).toHaveLength(1);
-    expect(phishing[0]).toMatchObject({ id: created.id, text: input.text, roomKey: input.roomKey });
-    expect(listCommunityMessages('Job Scam')).toHaveLength(1);
+    expect(phishing.length).toBeGreaterThan(1);
+    expect(phishing).toContainEqual(expect.objectContaining({ id: created.id, text: input.text, roomKey: input.roomKey }));
+    expect(listCommunityMessages('Job Scam').length).toBeGreaterThan(1);
   });
 
   it('rejects unknown rooms and messages over 500 characters', () => {
@@ -63,8 +72,8 @@ describe('SQLite community messages', () => {
       first.nextBefore?.createdAt,
       first.nextBefore?.id
     );
-    expect(older.messages).toHaveLength(2);
-    expect(new Set([...first.messages, ...older.messages].map((message) => message.id)).size).toBe(52);
+    expect(older.messages).toHaveLength(5);
+    expect(new Set([...first.messages, ...older.messages].map((message) => message.id)).size).toBe(55);
   });
 });
 

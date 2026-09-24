@@ -20,6 +20,7 @@ import { useI18n } from '../i18n';
 import { useDomain } from '../i18n/useDomain';
 import { deviceToday, monthsAgo } from '../services/dates';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 /** Sentinel for "no filter on this field". Not a real dataset value. */
 const ANY = '__any__';
@@ -45,6 +46,7 @@ const PAGE = 5;
 export const SearchScreen: React.FC = () => {
   const { t } = useI18n();
   const domain = useDomain();
+  const { scale } = useTextScale();
 
   // Re-render when startup hydration or a confirmed report updates the shared
   // store. A previously-run query then refreshes instead of showing stale data.
@@ -112,7 +114,7 @@ export const SearchScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <ScreenHeader title={t('tab.search')} />
+        <ScreenHeader title={t('tab.search')} showControls />
 
         <Card>
           <Dropdown
@@ -131,18 +133,18 @@ export const SearchScreen: React.FC = () => {
           />
           <Dropdown
             label={t('search.town')}
-            hint={t('search.optional')}
+            hint={t('search.required')}
             value={town}
             options={townOptions}
             onChange={setTown}
           />
 
           <View style={styles.labelRow}>
-            <Text style={styles.fieldLabel}>{t('search.keywords')}</Text>
-            <Text style={styles.fieldHint}>{t('search.optional')}</Text>
+            <Text style={[styles.fieldLabel, { fontSize: scaled(font.small, scale) }]}>{t('search.keywords')}</Text>
+            <Text style={[styles.fieldHint, { fontSize: scaled(font.small, scale) }]}>{t('search.optional')}</Text>
           </View>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { fontSize: scaled(font.body, scale) }]}
             value={keywords}
             onChangeText={setKeywords}
             placeholder={t('search.keywordsPlaceholder')}
@@ -192,7 +194,7 @@ export const SearchScreen: React.FC = () => {
 
                 {visible.map((r) => (
                   <View key={r.id} style={styles.caseCard}>
-                    <Text style={styles.caseType}>{domain.scamType(r.scamType)}</Text>
+                    <Text style={[styles.caseType, { fontSize: scaled(font.body, scale) }]}>{domain.scamType(r.scamType)}</Text>
                     <Muted>
                       {/* specificPlace is a street address or landmark, so it is
                           deliberately left untranslated. */}
@@ -209,7 +211,7 @@ export const SearchScreen: React.FC = () => {
                           accessibilityLabel={t('search.readSource')}
                           hitSlop={8}
                         >
-                          <Text style={styles.sourceLink}>{t('search.readSource')} ↗</Text>
+                          <Text style={[styles.sourceLink, { fontSize: scaled(font.small, scale) }]}>{t('search.readSource')} ↗</Text>
                         </Pressable>
                       ) : null}
                     </View>

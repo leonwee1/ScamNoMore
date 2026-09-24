@@ -1,5 +1,5 @@
 import { filenameFor, mimeOf } from '../lib/http';
-import { noSpeechResult } from '../lib/openai';
+import { detectHallucination, noSpeechResult } from '../lib/openai';
 import { extractJsonObject, parseAnalysisJson } from '../lib/parse';
 import { ANALYSIS_SYSTEM_PROMPT, buildAnalysisUserPrompt } from '../lib/prompts';
 import { riskFromProbability } from '../lib/types';
@@ -161,6 +161,8 @@ describe('buildAnalysisUserPrompt', () => {
     const p = buildAnalysisUserPrompt({ source: 'video', transcript: 'guaranteed returns' });
     expect(p).toMatch(/audio track/i);
     expect(p).toContain('guaranteed returns');
+    expect(p).toMatch(/identify what the transcript.*about/i);
+    expect(p).toMatch(/assess it even when it is benign/i);
   });
 
   it('handles a silent video honestly', () => {
@@ -184,6 +186,23 @@ describe('noSpeechResult', () => {
     });
     expect('probability' in result).toBe(false);
     expect('riskLevel' in result).toBe(false);
+  });
+});
+
+describe('detectHallucination', () => {
+  it('rejects a repeated music/metadata phrase without sentence punctuation', () => {
+    const text = '詞曲 李宗盛 演唱 李宗盛 演唱 李宗盛 演唱 李宗盛 演唱 李宗盛 演唱';
+    expect(detectHallucination(text, [])).toMatchObject({ hallucinated: true });
+  });
+
+  it('rejects a repeated filler loop from music', () => {
+    const text = 'Oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh, oh.';
+    expect(detectHallucination(text, [])).toMatchObject({ hallucinated: true });
+  });
+
+  it('keeps a normal spoken transcript with occasional repeated words', () => {
+    const text = 'The caller said hello, then asked me to verify my bank account immediately.';
+    expect(detectHallucination(text, [])).toEqual({ hallucinated: false });
   });
 });
 

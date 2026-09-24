@@ -276,6 +276,9 @@ export interface TranscriptionSegment {
  *
  *  1. Degenerate repetition — one short sentence filling the whole transcript.
  *  2. Whisper's own `no_speech_prob`, which runs high on invented segments.
+ *  3. Repeated token blocks, which catch music/metadata hallucinations that
+ *     have no sentence punctuation (for example, the same Chinese credit line
+ *     repeated across an instrumental track).
  */
 export function detectHallucination(
   text: string,
@@ -289,6 +292,16 @@ export function detectHallucination(
     .map((s) => s.trim())
     .filter(Boolean);
   const unique = new Set(sentences);
+
+  const repeatedBlock = findRepeatedTokenBlock(text);
+  if (repeatedBlock) {
+    return {
+      hallucinated: true,
+      reason:
+        `repeated token block ${repeatedBlock.repeats}x ` +
+        `(${repeatedBlock.coveredTokens}/${repeatedBlock.totalTokens} tokens)`,
+    };
+  }
 
   if (sentences.length >= 3 && unique.size === 1) {
     return {
@@ -317,6 +330,36 @@ export function detectHallucination(
   return { hallucinated: false };
 }
 
+/**
+ * Find a short phrase repeated enough times to dominate the transcript.
+ * Whisper can emit this shape for music or metadata even when each individual
+ * segment looks plausible. Requiring a two-token block and majority coverage
+ * avoids treating ordinary repeated words as hallucinations.
+ */
+function findRepeatedTokenBlock(
+  text: string
+): { repeats: number; coveredTokens: number; totalTokens: number } | undefined {
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length < 9) return undefined;
+
+  const maxBlockSize = Math.min(12, Math.floor(tokens.length / 3));
+  for (let size = 2; size <= maxBlockSize; size++) {
+    const counts = new Map<string, number>();
+    for (let i = 0; i + size <= tokens.length; i++) {
+      const key = tokens.slice(i, i + size).join('\u0001');
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+
+    for (const [key, repeats] of counts) {
+      const coveredTokens = repeats * size;
+      if (repeats >= 3 && coveredTokens >= Math.max(9, Math.ceil(tokens.length * 0.55))) {
+        return { repeats, coveredTokens, totalTokens: tokens.length };
+      }
+    }
+  }
+  return undefined;
+}
+
 /** Analyze a transcript or user-supplied text with gpt-4o. */
 export async function analyzeTextEvidence(
   text: string,
@@ -342,6 +385,41 @@ export async function analyzeTextEvidence(
 
   const raw = res.choices[0]?.message?.content;
   if (!raw) throw emptyCompletionError(res, source === 'text' ? 'text' : 'recording');
+
+  const parsed = parseAnalysisJson(raw);
+  // A readable transcript should normally be scored, even when it is benign.
+  // Give the model one focused correction opportunity if it followed the old
+  // "not enough scam detail" rule and returned a scoreless response anyway.
+  if (parsed.assessmentStatus === 'unable_to_assess' && text.trim()) {
+    try {
+      const retry = await getClient().chat.completions.create({
+        model: CHAT_MODEL,
+        temperature: 0.2,
+        max_tokens: 900,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: ANALYSIS_SYSTEM_PROMPT },
+          { role: 'system', content: buildDateContext(today) },
+          ...systemIf(buildLanguageContext(language)),
+          { role: 'user', content: buildAnalysisUserPrompt(signals) },
+          {
+            role: 'user',
+            content:
+              'The transcript above is readable and identifiable. Re-evaluate it and return an assessed scam probability ' +
+              'when you can understand what it describes, including for a benign lesson, story, song lyric, or ordinary conversation. ' +
+              'Use a low probability when there are no scam indicators. Return unable_to_assess only if the transcript is empty, unreadable, ' +
+              'or clearly hallucinated.',
+          },
+        ],
+      });
+      const retryRaw = retry.choices[0]?.message?.content;
+      if (retryRaw && parseAnalysisJson(retryRaw).assessmentStatus === 'assessed') {
+        return toResult(retryRaw, signals);
+      }
+    } catch {
+      // Keep the original honest scoreless result if the corrective pass fails.
+    }
+  }
   return toResult(raw, signals);
 }
 

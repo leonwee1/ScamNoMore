@@ -34,8 +34,8 @@ const en = {
   'chatbot.typing': 'Assistant is typing…',
   'chatbot.error': 'I had trouble responding. Please try again.',
 
-  'home.prompt': 'Please select what to analyze:',
-  'home.text.group': 'Text (eg. message, email, advertisement)',
+  'home.prompt': 'Select what to analyze:',
+  'home.text.group': 'Text (message, email, advertisement)',
   'home.takePicture': 'Take picture',
   'home.uploadImage': 'Upload image file',
   'home.voice.group': 'Voice (phonecall, self recount)',
@@ -43,9 +43,11 @@ const en = {
   'home.sayWhat': 'Say what happened',
   'home.video.group': 'Video',
   'home.uploadVideo': 'Upload video file',
+  'home.latestVerified': 'Latest verified cases',
+  'home.viewAllCases': 'View all cases',
   'home.cautionTitle': 'Never share confidential details',
   'home.caution':
-    'Do not share OTPs, your NRIC, passwords, Singpass logins or full card numbers with anyone — including in the screenshots, recordings and videos you upload here. Real banks and government agencies will never ask you for them.',
+    'Never share OTPs, NRIC numbers, passwords, Singpass details or full card numbers. Do not include them in uploads. Treat unexpected requests for these details as suspicious and verify through an official channel.',
 
   'analyze.startAnalyzing': 'Start analyzing',
   // Idle label only. Once recording starts the button switches to
@@ -80,10 +82,11 @@ const en = {
   'analyze.transcribeFailed': 'Transcription failed.',
   'analyze.orTypeBelow': 'You can also type what happened below.',
   'analyze.noSpeech.reason':
-    'No speech could be detected in the audio, so there was nothing to analyse.',
+    'No reliable spoken conversation could be detected. Music, singing, or silence can produce inaccurate transcripts.',
   'analyze.noSpeech.video':
-    'This check reads the video’s spoken audio. A silent video cannot be assessed this way.',
-  'analyze.noSpeech.voice': 'The recording appears to be silent or too quiet to transcribe.',
+    'This check reads the video’s spoken audio. A silent or music-only video cannot be assessed this way.',
+  'analyze.noSpeech.voice':
+    'The recording appears to contain music, singing, silence, or audio too quiet to transcribe reliably.',
   'analyze.noSpeech.adviceVideo':
     'Try a clip that contains speech, or screenshot the video and use the image check instead. If unsure about an offer, call 1799.',
   'analyze.noSpeech.adviceVoice':
@@ -93,14 +96,18 @@ const en = {
     'The AI response did not include a usable scam probability, so ScamNoMore cannot assess this safely.',
   'analyze.unable.insufficientReason':
     'The available image, audio, or text was too unclear or limited for a reliable assessment.',
+  'analyze.unable.evidenceReason':
+    'The transcribed text says: “{quote}”. The system could not produce a reliable scam score for this content.',
   'analyze.unable.notSafe': 'This is not evidence of safety; there is simply no reliable score to show.',
   'analyze.unable.advice':
     'Do not click links, transfer money, or share OTPs. Try again with clearer evidence, and call 1799 if you are unsure.',
   'analyze.privacy.title': 'Privacy before upload',
   'analyze.privacy.body':
     'Your selected media and any transcript are sent over HTTPS to ScamNoMore’s server and OpenAI for processing. ScamNoMore does not intentionally save the media after processing, but OpenAI processes it under its own data policies.',
-  'analyze.privacy.redact':
+  'analyze.privacy.imageWarning':
     'Please crop or redact OTPs, NRIC numbers, passwords, Singpass details, full card numbers, and other personal information before continuing.',
+  'analyze.privacy.audioVideoWarning':
+    'Do not upload audio or video containing OTPs, NRIC numbers, passwords, Singpass details, full card numbers, or other personal information. Cancel and choose or create a version with sensitive parts removed instead.',
   'analyze.privacy.continue': 'I understand and continue',
 
   'risk.safe': 'Very low risk',
@@ -147,7 +154,7 @@ const en = {
 
   'report.title': 'Report an incident',
   'report.date': 'Date of Incident',
-  'report.description': 'Incident description (max 200 words)',
+  'report.description': 'Incident description',
   'report.descriptionPlaceholder':
     'Describe what happened (key info like amount, platform, contact)…',
   'report.town': 'Town',
@@ -159,7 +166,7 @@ const en = {
     'Thank you for reporting the incident. Your reporting will help more people to safeguard themselves against scams.',
   // {helpline} is highlighted at render time; see components/ComfortNote.tsx.
   'report.comfort':
-    'If you were scammed, make a police report at your nearest neighbourhood police station. Scammers use practised tactics — this is not your fault. For a confidential chat, call the {helpline}.',
+    'If you were scammed, make a police report at your nearest neighbourhood police station. For a confidential chat, call the {helpline}.',
   'report.helpline': '1799 Helpline',
   'report.submittedAgain': 'You can file another report below.',
 
@@ -171,15 +178,12 @@ const en = {
   'community.exit': 'Exit chat room',
   'community.youAreIn': 'You are in',
   'community.roomSuffix': 'chat room',
-  'community.liveSession': 'Shared community discussion',
   'community.publicNotice':
     'Messages are visible to other ScamNoMore users. Do not post names, phone numbers, OTPs, bank details, or other personal information.',
-  'community.noMessages': 'No messages yet. Start the discussion carefully.',
+  'community.noMessages': 'No messages yet.',
   'community.loading': 'Loading messages…',
-  'community.refresh': 'Refresh messages',
   'community.loadEarlier': 'Load earlier messages',
   'community.member': 'Community member',
-  'community.etiquette': 'Please maintain basic chat etiquette. Thanks.',
   'community.typeMessage': 'Type a message…',
   'community.send': 'Send',
   'community.you': 'You',
@@ -233,7 +237,7 @@ const zh: Dict = {
   'chatbot.error': '回应时出现问题，请再试一次。',
 
   'home.prompt': '请选择要分析的内容：',
-  'home.text.group': '文字（如短信、电邮、广告）',
+  'home.text.group': '文字（短信、电邮、广告）',
   'home.takePicture': '拍照',
   'home.uploadImage': '上传图片',
   'home.voice.group': '语音（来电、自述经过）',
@@ -241,9 +245,11 @@ const zh: Dict = {
   'home.sayWhat': '讲述经过',
   'home.video.group': '视频',
   'home.uploadVideo': '上传视频',
+  'home.latestVerified': '最新已验证案例',
+  'home.viewAllCases': '查看所有案例',
   'home.cautionTitle': '切勿透露机密资料',
   'home.caution':
-    '请勿向任何人透露一次性密码（OTP）、身份证号码、密码、Singpass 登录资料或完整的信用卡号码，包括您在此上传的截图、录音和视频。真正的银行与政府机构绝不会向您索取这些资料。',
+    '切勿透露一次性密码（OTP）、身份证号码、密码、Singpass 资料或完整信用卡号码。上传的内容也不要包含这些资料。对这些资料的意外索取要提高警惕，并通过官方渠道核实。',
 
   'analyze.startAnalyzing': '开始分析',
   'analyze.startRecording': '开始录音',
@@ -272,9 +278,9 @@ const zh: Dict = {
   'analyze.failed': '分析失败，请再试一次。',
   'analyze.transcribeFailed': '转写失败。',
   'analyze.orTypeBelow': '您也可以在下方输入经过。',
-  'analyze.noSpeech.reason': '音频中未检测到语音，因此没有可分析的内容。',
-  'analyze.noSpeech.video': '此项检查分析视频中的语音。无声视频无法以这种方式评估。',
-  'analyze.noSpeech.voice': '录音似乎没有声音，或音量太低无法转写。',
+  'analyze.noSpeech.reason': '未检测到可靠的对话语音。音乐、歌唱或静音可能产生不准确的转写文字。',
+  'analyze.noSpeech.video': '此项检查分析视频中的语音。无声或只有音乐的视频无法以这种方式评估。',
+  'analyze.noSpeech.voice': '录音似乎只有音乐、歌唱、静音，或音量太低，无法可靠转写。',
   'analyze.noSpeech.adviceVideo':
     '请改用含语音的片段，或将视频截图后使用图片检查。若对某项优惠有疑虑，请致电 1799。',
   'analyze.noSpeech.adviceVoice':
@@ -284,14 +290,18 @@ const zh: Dict = {
     'AI 回应未包含可用的诈骗概率，因此 ScamNoMore 无法安全评估此内容。',
   'analyze.unable.insufficientReason':
     '现有图像、音频或文字过于模糊或有限，无法作出可靠评估。',
+  'analyze.unable.evidenceReason':
+    '转写文字内容为：“{quote}”。系统无法为这项内容生成可靠的诈骗评分。',
   'analyze.unable.notSafe': '这并不表示安全；只是没有可靠评分可显示。',
   'analyze.unable.advice':
     '请勿点击链接、转账或透露一次性密码。请以更清晰的证据重试；如有疑虑，请致电 1799。',
   'analyze.privacy.title': '上传前的隐私说明',
   'analyze.privacy.body':
     '您选择的媒体和任何转写文字会通过 HTTPS 发送到 ScamNoMore 服务器和 OpenAI 进行处理。ScamNoMore 不会在处理后主动保存媒体，但 OpenAI 会依照其自身的数据政策处理资料。',
-  'analyze.privacy.redact':
+  'analyze.privacy.imageWarning':
     '继续前，请裁剪或遮盖 OTP、身份证号码、密码、Singpass 资料、完整卡号及其他个人资料。',
+  'analyze.privacy.audioVideoWarning':
+    '请勿上传含有 OTP、身份证号码、密码、Singpass 资料、完整卡号或其他个人资料的音频或视频。请取消并选择或制作已删除敏感部分的版本。',
   'analyze.privacy.continue': '我了解并继续',
 
   'risk.safe': '风险极低',
@@ -336,7 +346,7 @@ const zh: Dict = {
 
   'report.title': '举报事件',
   'report.date': '事发日期',
-  'report.description': '事件描述（最多 200 字）',
+  'report.description': '事件描述',
   'report.descriptionPlaceholder': '请描述经过（金额、平台、联络方式等关键信息）…',
   'report.town': '区域',
   'report.scamType': '诈骗类型',
@@ -345,7 +355,7 @@ const zh: Dict = {
   'report.selectType': '请选择诈骗类型',
   'report.thankYou': '感谢您举报此事件。您的举报将帮助更多人防范诈骗。',
   'report.comfort':
-    '如果您被骗，请到最近的邻里警岗报警。骗子手法老练，这不是您的错。如需保密倾谈，请致电{helpline}。',
+    '如果您被骗，请到最近的邻里警岗报警。如需保密倾谈，请致电{helpline}。',
   'report.helpline': '1799 热线',
   'report.submittedAgain': '您可以在下方提交另一份举报。',
 
@@ -357,14 +367,11 @@ const zh: Dict = {
   'community.exit': '退出聊天室',
   'community.youAreIn': '您目前在',
   'community.roomSuffix': '聊天室',
-  'community.liveSession': '共享社区讨论',
   'community.publicNotice': '信息会显示给其他 ScamNoMore 用户。请勿发布姓名、电话号码、OTP、银行资料或其他个人资料。',
-  'community.noMessages': '还没有信息。请谨慎地开始讨论。',
+  'community.noMessages': '还没有信息。',
   'community.loading': '正在加载信息…',
-  'community.refresh': '刷新信息',
   'community.loadEarlier': '加载更早的信息',
   'community.member': '社区成员',
-  'community.etiquette': '请保持基本的聊天礼仪，谢谢。',
   'community.typeMessage': '输入信息…',
   'community.send': '发送',
   'community.you': '我',
@@ -409,7 +416,7 @@ const ms: Dict = {
   'chatbot.error': 'Saya menghadapi masalah untuk menjawab. Sila cuba lagi.',
 
   'home.prompt': 'Sila pilih apa untuk dianalisis:',
-  'home.text.group': 'Teks (cth. mesej, e-mel, iklan)',
+  'home.text.group': 'Teks (mesej, e-mel, iklan)',
   'home.takePicture': 'Ambil gambar',
   'home.uploadImage': 'Muat naik imej',
   'home.voice.group': 'Suara (panggilan telefon, cerita sendiri)',
@@ -417,9 +424,11 @@ const ms: Dict = {
   'home.sayWhat': 'Ceritakan apa berlaku',
   'home.video.group': 'Video',
   'home.uploadVideo': 'Muat naik video',
+  'home.latestVerified': 'Kes terkini yang disahkan',
+  'home.viewAllCases': 'Lihat semua kes',
   'home.cautionTitle': 'Jangan kongsi maklumat sulit',
   'home.caution':
-    'Jangan kongsi OTP, nombor NRIC, kata laluan, butiran Singpass atau nombor kad penuh dengan sesiapa — termasuk dalam tangkapan skrin, rakaman dan video yang anda muat naik di sini. Bank dan agensi kerajaan yang sah tidak akan meminta maklumat tersebut.',
+    'Jangan kongsi OTP, nombor NRIC, kata laluan, butiran Singpass atau nombor kad penuh. Jangan sertakan maklumat ini dalam muat naik. Anggap permintaan luar jangka sebagai mencurigakan dan sahkan melalui saluran rasmi.',
 
   'analyze.startAnalyzing': 'Mula analisis',
   'analyze.startRecording': 'Mula rakaman suara',
@@ -450,11 +459,11 @@ const ms: Dict = {
   'analyze.transcribeFailed': 'Transkripsi gagal.',
   'analyze.orTypeBelow': 'Anda juga boleh menaip apa yang berlaku di bawah.',
   'analyze.noSpeech.reason':
-    'Tiada pertuturan dapat dikesan dalam audio, jadi tiada apa untuk dianalisis.',
+    'Tiada perbualan lisan yang boleh dipercayai dapat dikesan. Muzik, nyanyian atau senyap boleh menghasilkan transkrip yang tidak tepat.',
   'analyze.noSpeech.video':
-    'Pemeriksaan ini membaca audio pertuturan video. Video tanpa bunyi tidak dapat dinilai dengan cara ini.',
+    'Pemeriksaan ini membaca audio pertuturan video. Video yang senyap atau hanya mengandungi muzik tidak dapat dinilai dengan cara ini.',
   'analyze.noSpeech.voice':
-    'Rakaman ini kelihatan sunyi atau terlalu perlahan untuk ditranskripsi.',
+    'Rakaman ini kelihatan mengandungi muzik, nyanyian, senyap atau audio yang terlalu perlahan untuk ditranskripsikan dengan boleh dipercayai.',
   'analyze.noSpeech.adviceVideo':
     'Cuba klip yang mengandungi pertuturan, atau tangkap skrin video itu dan guna pemeriksaan imej. Jika tidak pasti tentang sesuatu tawaran, hubungi 1799.',
   'analyze.noSpeech.adviceVoice':
@@ -464,14 +473,18 @@ const ms: Dict = {
     'Respons AI tidak mengandungi kebarangkalian penipuan yang boleh digunakan, jadi ScamNoMore tidak dapat menilainya dengan selamat.',
   'analyze.unable.insufficientReason':
     'Imej, audio atau teks yang tersedia terlalu tidak jelas atau terhad untuk penilaian yang boleh dipercayai.',
+  'analyze.unable.evidenceReason':
+    'Teks yang ditranskripsikan ialah: “{quote}”. Sistem tidak dapat menghasilkan skor penipuan yang boleh dipercayai untuk kandungan ini.',
   'analyze.unable.notSafe': 'Ini bukan bukti bahawa ia selamat; cuma tiada skor yang boleh dipercayai untuk dipaparkan.',
   'analyze.unable.advice':
     'Jangan klik pautan, pindahkan wang atau kongsi OTP. Cuba lagi dengan bukti yang lebih jelas, dan hubungi 1799 jika anda tidak pasti.',
   'analyze.privacy.title': 'Privasi sebelum muat naik',
   'analyze.privacy.body':
     'Media yang dipilih dan sebarang transkrip dihantar melalui HTTPS ke pelayan ScamNoMore dan OpenAI untuk diproses. ScamNoMore tidak menyimpan media dengan sengaja selepas pemprosesan, tetapi OpenAI memprosesnya mengikut dasar datanya sendiri.',
-  'analyze.privacy.redact':
+  'analyze.privacy.imageWarning':
     'Sila potong atau tutup OTP, nombor NRIC, kata laluan, butiran Singpass, nombor kad penuh dan maklumat peribadi lain sebelum meneruskan.',
+  'analyze.privacy.audioVideoWarning':
+    'Jangan muat naik audio atau video yang mengandungi OTP, nombor NRIC, kata laluan, butiran Singpass, nombor kad penuh atau maklumat peribadi lain. Batalkan dan pilih atau buat versi yang telah membuang bahagian sensitif.',
   'analyze.privacy.continue': 'Saya faham dan teruskan',
 
   'risk.safe': 'Risiko sangat rendah',
@@ -516,7 +529,7 @@ const ms: Dict = {
 
   'report.title': 'Laporkan insiden',
   'report.date': 'Tarikh Insiden',
-  'report.description': 'Penerangan insiden (maksimum 200 perkataan)',
+  'report.description': 'Penerangan insiden',
   'report.descriptionPlaceholder':
     'Terangkan apa yang berlaku (maklumat penting seperti jumlah, platform, kenalan)…',
   'report.town': 'Bandar',
@@ -527,7 +540,7 @@ const ms: Dict = {
   'report.thankYou':
     'Terima kasih kerana melaporkan insiden ini. Laporan anda akan membantu lebih ramai orang melindungi diri daripada penipuan.',
   'report.comfort':
-    'Jika anda diperdaya, buat laporan polis di balai polis kejiranan terdekat. Penipu menggunakan taktik terlatih — ini bukan salah anda. Untuk perbualan sulit, hubungi {helpline}.',
+    'Jika anda diperdaya, buat laporan polis di balai polis kejiranan terdekat. Untuk perbualan sulit, hubungi {helpline}.',
   'report.helpline': 'Talian 1799',
   'report.submittedAgain': 'Anda boleh hantar laporan lain di bawah.',
 
@@ -539,15 +552,12 @@ const ms: Dict = {
   'community.exit': 'Keluar bilik sembang',
   'community.youAreIn': 'Anda berada dalam',
   'community.roomSuffix': 'bilik sembang',
-  'community.liveSession': 'Perbincangan komuniti dikongsi',
   'community.publicNotice':
     'Mesej boleh dilihat oleh pengguna ScamNoMore yang lain. Jangan siarkan nama, nombor telefon, OTP, butiran bank atau maklumat peribadi lain.',
-  'community.noMessages': 'Belum ada mesej. Mulakan perbincangan dengan berhati-hati.',
+  'community.noMessages': 'Belum ada mesej.',
   'community.loading': 'Memuatkan mesej…',
-  'community.refresh': 'Muat semula mesej',
   'community.loadEarlier': 'Muat mesej terdahulu',
   'community.member': 'Ahli komuniti',
-  'community.etiquette': 'Sila jaga etika sembang asas. Terima kasih.',
   'community.typeMessage': 'Taip mesej…',
   'community.send': 'Hantar',
   'community.you': 'Anda',
@@ -599,7 +609,7 @@ const ta: Dict = {
   'chatbot.error': 'பதிலளிப்பதில் சிக்கல் ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.',
 
   'home.prompt': 'பகுப்பாய்வு செய்ய வேண்டியதைத் தேர்ந்தெடுக்கவும்:',
-  'home.text.group': 'உரை (எ.கா. செய்தி, மின்னஞ்சல், விளம்பரம்)',
+  'home.text.group': 'உரை (செய்தி, மின்னஞ்சல், விளம்பரம்)',
   'home.takePicture': 'படம் எடு',
   'home.uploadImage': 'படத்தை பதிவேற்று',
   'home.voice.group': 'குரல் (தொலைபேசி அழைப்பு, சொந்த விவரிப்பு)',
@@ -607,9 +617,11 @@ const ta: Dict = {
   'home.sayWhat': 'நடந்ததை சொல்',
   'home.video.group': 'வீடியோ',
   'home.uploadVideo': 'வீடியோ பதிவேற்று',
+  'home.latestVerified': 'சமீபத்திய சரிபார்க்கப்பட்ட வழக்குகள்',
+  'home.viewAllCases': 'அனைத்து வழக்குகளையும் காண்க',
   'home.cautionTitle': 'ரகசியத் தகவல்களைப் பங்கிடாதீர்கள்',
   'home.caution':
-    'OTP, உங்கள் NRIC எண், கடவுச்சொற்கள், Singpass விவரங்கள் அல்லது முழு அட்டை எண்களை யாருடனும் பங்கிட வேண்டாம் — இங்கு நீங்கள் பதிவேற்றும் திரைப்பிடிப்புகள், பதிவுகள் மற்றும் வீடியோக்களிலும் சேர்த்து. உண்மையான வங்கிகளும் அரசு நிறுவனங்களும் இவற்றை ஒருபோதும் கேட்க மாட்டார்கள்.',
+    'OTP, NRIC எண், கடவுச்சொல், Singpass விவரங்கள் அல்லது முழு அட்டை எண்களைப் பகிர வேண்டாம். பதிவேற்றும் உள்ளடக்கத்திலும் இவற்றைச் சேர்க்காதீர்கள். எதிர்பாராத கோரிக்கைகளை சந்தேகமாகக் கருதி அதிகாரப்பூர்வ வழியில் சரிபார்க்கவும்.',
 
   'analyze.startAnalyzing': 'பகுப்பாய்வைத் தொடங்கு',
   'analyze.startRecording': 'குரல் பதிவைத் தொடங்கு',
@@ -640,11 +652,11 @@ const ta: Dict = {
   'analyze.transcribeFailed': 'எழுத்துவடிவமாக்கம் தோல்வியடைந்தது.',
   'analyze.orTypeBelow': 'நடந்ததை கீழே தட்டச்சு செய்யவும் செய்யலாம்.',
   'analyze.noSpeech.reason':
-    'ஆடியோவில் பேச்சு கண்டறியப்படவில்லை, எனவே பகுப்பாய்வு செய்ய எதுவும் இல்லை.',
+    'நம்பகமான பேசும் உரையாடல் கண்டறியப்படவில்லை. இசை, பாடல் அல்லது அமைதி தவறான உரைமாற்றங்களை உருவாக்கலாம்.',
   'analyze.noSpeech.video':
-    'இந்தச் சோதனை வீடியோவின் பேச்சு ஒலியைப் படிக்கிறது. ஒலியற்ற வீடியோவை இந்த வழியில் மதிப்பிட முடியாது.',
+    'இந்தச் சோதனை வீடியோவின் பேச்சு ஒலியைப் படிக்கிறது. ஒலியற்ற அல்லது இசை மட்டுமே உள்ள வீடியோவை இந்த வழியில் மதிப்பிட முடியாது.',
   'analyze.noSpeech.voice':
-    'இந்தப் பதிவு ஒலியற்றதாக அல்லது மிகவும் மெதுவாக இருப்பதால் எழுத்துவடிவமாக்க முடியவில்லை.',
+    'பதிவில் இசை, பாடல், அமைதி அல்லது நம்பகமாக உரைமாற்ற முடியாத அளவுக்கு குறைந்த ஒலி இருப்பதாகத் தெரிகிறது.',
   'analyze.noSpeech.adviceVideo':
     'பேச்சு உள்ள பகுதியை முயற்சிக்கவும், அல்லது வீடியோவை ஸ்கிரீன்ஷாட் எடுத்து படச் சோதனையைப் பயன்படுத்தவும். ஏதேனும் சந்தேகம் இருந்தால் 1799 என்ற எண்ணை அழைக்கவும்.',
   'analyze.noSpeech.adviceVoice':
@@ -654,14 +666,18 @@ const ta: Dict = {
     'AI பதிலில் பயன்படுத்தக்கூடிய மோசடி நிகழ்தகவு இல்லை; ஆகவே ScamNoMore இதை பாதுகாப்பாக மதிப்பிட முடியவில்லை.',
   'analyze.unable.insufficientReason':
     'கிடைத்த படம், ஒலி அல்லது உரை தெளிவற்றதாக அல்லது மிகவும் குறைவாக இருப்பதால் நம்பகமாக மதிப்பிட முடியவில்லை.',
+  'analyze.unable.evidenceReason':
+    'மாற்றெழுதப்பட்ட உரை: “{quote}”. இந்த உள்ளடக்கத்திற்கு நம்பகமான மோசடி மதிப்பெண்ணை உருவாக்க முடியவில்லை.',
   'analyze.unable.notSafe': 'இது பாதுகாப்பானது என்பதற்கான ஆதாரம் அல்ல; காட்ட நம்பகமான மதிப்பெண் இல்லை.',
   'analyze.unable.advice':
     'இணைப்புகளை அழுத்தாதீர்கள், பணம் அனுப்பாதீர்கள் அல்லது OTP-ஐ பகிராதீர்கள். தெளிவான ஆதாரத்துடன் மீண்டும் முயற்சிக்கவும்; சந்தேகம் இருந்தால் 1799 என்ற எண்ணை அழைக்கவும்.',
   'analyze.privacy.title': 'பதிவேற்றுவதற்கு முன் தனியுரிமை',
   'analyze.privacy.body':
     'நீங்கள் தேர்ந்தெடுத்த ஊடகமும் உரைமாற்றமும் HTTPS வழியாக செயலாக்கத்திற்காக ScamNoMore சேவையகத்திற்கும் OpenAI-க்கும் அனுப்பப்படும். செயலாக்கத்திற்குப் பிறகு ScamNoMore ஊடகத்தை சேமிப்பதில்லை; ஆனால் OpenAI அதன் சொந்த தரவுக் கொள்கைகளின் கீழ் அதை செயலாக்குகிறது.',
-  'analyze.privacy.redact':
+  'analyze.privacy.imageWarning':
     'தொடர்வதற்கு முன் OTP, NRIC எண்கள், கடவுச்சொற்கள், Singpass விவரங்கள், முழு அட்டை எண்கள் மற்றும் பிற தனிப்பட்ட தகவல்களை வெட்டவும் அல்லது மறைக்கவும்.',
+  'analyze.privacy.audioVideoWarning':
+    'OTP, NRIC எண்கள், கடவுச்சொற்கள், Singpass விவரங்கள், முழு அட்டை எண்கள் அல்லது பிற தனிப்பட்ட தகவல்கள் உள்ள ஆடியோ அல்லது வீடியோவைப் பதிவேற்றாதீர்கள். ரத்து செய்து, முக்கிய பகுதிகள் அகற்றப்பட்ட பதிப்பைத் தேர்ந்தெடுக்கவும் அல்லது உருவாக்கவும்.',
   'analyze.privacy.continue': 'நான் புரிந்துகொண்டு தொடர்கிறேன்',
 
   'risk.safe': 'மிகக் குறைந்த ஆபத்து',
@@ -706,7 +722,7 @@ const ta: Dict = {
 
   'report.title': 'சம்பவத்தைப் புகாரளி',
   'report.date': 'சம்பவ தேதி',
-  'report.description': 'சம்பவ விவரம் (அதிகபட்சம் 200 சொற்கள்)',
+  'report.description': 'சம்பவ விவரம்',
   'report.descriptionPlaceholder':
     'நடந்ததை விவரிக்கவும் (தொகை, தளம், தொடர்பு போன்ற முக்கிய தகவல்)…',
   'report.town': 'நகரப் பகுதி',
@@ -717,7 +733,7 @@ const ta: Dict = {
   'report.thankYou':
     'சம்பவத்தைப் புகாரளித்ததற்கு நன்றி. உங்கள் புகார் மேலும் பலரை மோசடிகளிலிருந்து பாதுகாக்க உதவும்.',
   'report.comfort':
-    'நீங்கள் மோசடிக்கு ஆளானால், அருகிலுள்ள அண்டை காவல் நிலையத்தில் புகார் அளிக்கவும். மோசடிக்காரர்கள் பழகிய உத்திகளைப் பயன்படுத்துகிறார்கள் — இது உங்கள் தவறு அல்ல. ரகசியமான உரையாடலுக்கு {helpline} ஐ அழைக்கவும்.',
+    'நீங்கள் மோசடிக்கு ஆளானால், அருகிலுள்ள அண்டை காவல் நிலையத்தில் புகார் அளிக்கவும். ரகசியமான உரையாடலுக்கு {helpline} ஐ அழைக்கவும்.',
   'report.helpline': '1799 உதவி எண்',
   'report.submittedAgain': 'கீழே மற்றொரு புகாரை சமர்ப்பிக்கலாம்.',
 
@@ -729,15 +745,12 @@ const ta: Dict = {
   'community.exit': 'அறையிலிருந்து வெளியேறு',
   'community.youAreIn': 'நீங்கள் இருக்கும் இடம்',
   'community.roomSuffix': 'அரட்டை அறை',
-  'community.liveSession': 'பகிரப்பட்ட சமூக கலந்துரையாடல்',
   'community.publicNotice':
     'செய்திகள் மற்ற ScamNoMore பயனர்களுக்குத் தெரியும். பெயர்கள், தொலைபேசி எண்கள், OTP, வங்கி விவரங்கள் அல்லது பிற தனிப்பட்ட தகவல்களை இட வேண்டாம்.',
-  'community.noMessages': 'இன்னும் செய்திகள் இல்லை. கவனமாக கலந்துரையாடலைத் தொடங்குங்கள்.',
+  'community.noMessages': 'இன்னும் செய்திகள் இல்லை.',
   'community.loading': 'செய்திகள் ஏற்றப்படுகின்றன…',
-  'community.refresh': 'செய்திகளைப் புதுப்பிக்கவும்',
   'community.loadEarlier': 'முந்தைய செய்திகளை ஏற்றவும்',
   'community.member': 'சமூக உறுப்பினர்',
-  'community.etiquette': 'அடிப்படை அரட்டை பண்பை கடைப்பிடிக்கவும். நன்றி.',
   'community.typeMessage': 'செய்தியை தட்டச்சு செய்யவும்…',
   'community.send': 'அனுப்பு',
   'community.you': 'நீங்கள்',

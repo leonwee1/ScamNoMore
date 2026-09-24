@@ -11,6 +11,7 @@ import { ReportScreen } from './screens/ReportScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { VideoAnalysisScreen } from './screens/VideoAnalysisScreen';
 import { VoiceAnalysisScreen } from './screens/VoiceAnalysisScreen';
+import { scaled, useTextScale } from './textScale';
 import { colors } from './theme';
 
 const Tab = createBottomTabNavigator();
@@ -34,6 +35,7 @@ const tabIcon = (emoji: string) => ({ focused }: { focused: boolean }) => (
 /** Bottom tabs: Home / Search / Report / Community (matches wireframe). */
 const Tabs: React.FC = () => {
   const { t } = useI18n();
+  const { scale } = useTextScale();
   return (
     <Tab.Navigator
       screenOptions={{
@@ -53,7 +55,7 @@ const Tabs: React.FC = () => {
         },
         // Bold on the selected tab, so the label reinforces the pill rather
         // than depending on colour alone.
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
+        tabBarLabelStyle: { fontSize: scaled(12, scale), fontWeight: '700' },
       }}
     >
       <Tab.Screen

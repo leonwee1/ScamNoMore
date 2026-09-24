@@ -22,6 +22,7 @@ import { Body, Button, Muted } from '../components/ui';
 import { useI18n } from '../i18n';
 import { api, ChatTurn } from '../services/api';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 /**
  * OpenAI-powered chatbot for scam Q&A and awareness tips.
@@ -32,6 +33,7 @@ import { colors, font, radius, spacing } from '../theme';
  */
 export const ChatbotScreen: React.FC = () => {
   const { t, lang } = useI18n();
+  const { scale } = useTextScale();
   const headerHeight = useHeaderHeight();
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -174,11 +176,11 @@ export const ChatbotScreen: React.FC = () => {
             }
             accessibilityState={{ disabled: busy }}
           >
-            <Text style={styles.micIcon}>{recorderState.isRecording ? '■' : '🎤'}</Text>
+            <Text style={[styles.micIcon, { fontSize: scaled(20, scale) }]}>{recorderState.isRecording ? '■' : '🎤'}</Text>
           </Pressable>
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, { fontSize: scaled(font.body, scale), lineHeight: scaled(21, scale) }]}
             value={draft}
             onChangeText={setDraft}
             placeholder={t('chatbot.placeholder')}

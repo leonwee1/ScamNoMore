@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, G, Path, Polygon, Text as SvgText } from 'react-native-svg';
 import { colors, font, RiskLevel, riskColor, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 /**
  * Speedometer-style gauge showing the probability that something is a scam.
@@ -67,6 +68,7 @@ export const RiskGauge: React.FC<{
   a11yLabel?: string;
   size?: number;
 }> = ({ probability, level, label, a11yLabel, size = 240 }) => {
+  const { scale } = useTextScale();
   // A gauge must never turn an invalid model value into NaN% or a misleading
   // green score. AnalysisResultView normally filters this case via isAssessed;
   // this second guard protects direct/stale callers as well.
@@ -124,14 +126,14 @@ export const RiskGauge: React.FC<{
         </G>
 
         {/* Scale end labels */}
-        <SvgText x={strokeWidth / 2} y={cy + strokeWidth} fill={colors.textMuted} fontSize={font.small}>
+        <SvgText x={strokeWidth / 2} y={cy + strokeWidth} fill={colors.textMuted} fontSize={scaled(font.small, scale)}>
           0%
         </SvgText>
         <SvgText
           x={width - strokeWidth / 2}
           y={cy + strokeWidth}
           fill={colors.textMuted}
-          fontSize={font.small}
+          fontSize={scaled(font.small, scale)}
           textAnchor="end"
         >
           100%
@@ -148,8 +150,8 @@ export const RiskGauge: React.FC<{
 
       {/* Numeric readout + verdict, so colour is never the only cue */}
       <View style={styles.readout}>
-        <Text style={[styles.pct, { color: activeColor }]}>{pct}%</Text>
-        <Text style={[styles.label, { color: activeColor }]}>{label}</Text>
+        <Text style={[styles.pct, { color: activeColor, fontSize: scaled(34, scale) }]}>{pct}%</Text>
+        <Text style={[styles.label, { color: activeColor, fontSize: scaled(font.h3, scale) }]}>{label}</Text>
       </View>
     </View>
   );

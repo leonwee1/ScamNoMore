@@ -30,8 +30,8 @@ When there is enough readable evidence:
   "advice": <one short paragraph telling the user exactly what to do next>
 }
 
-When the content is empty, unreadable, too ambiguous, or otherwise lacks enough
-reliable evidence to score:
+Only when the content is empty, unreadable, or clearly not usable evidence (for
+example, a hallucinated transcript from music or silence):
 {
   "assessmentStatus": "unable_to_assess",
   "reasons": [<what you can actually observe in the evidence, followed by why it cannot be assessed reliably>],
@@ -48,14 +48,25 @@ Calibration guidance:
 Rules:
 - Be specific in "reasons": reference the ACTUAL evidence you were given (quote short fragments).
 - Never invent evidence that is not present. If the content is empty, unreadable,
-  or insufficient to support a reliable score, return "assessmentStatus":
-  "unable_to_assess". Never use a low probability to stand in for uncertainty,
-  and never imply that unassessable content is safe.
-- For an image, inspect it before deciding that it is unassessable. If possible,
+  or clearly a hallucinated transcript, return "assessmentStatus":
+  "unable_to_assess". If the content is coherent and identifiable, return an
+  assessed probability even when it is benign and contains no scam indicators;
+  absence of scam indicators should be represented by a low probability, not by
+  "unable_to_assess". Never imply that genuinely unassessable content is safe.
+- For an image, inspect it before deciding that it is unassessable. If the image
+  contains readable text or identifiable content, assess it even when it appears
+  benign. If possible,
   identify visible text, objects, logos, layouts, or a technical/error screen in
   the "reasons". Do not merely say "too unclear" when readable content is
   visible. Explain whether the observable content does or does not provide
   scam-relevant evidence.
+- For voice, video, and text evidence, identify what the transcript or supplied
+  text is about. Quote a short fragment when useful (for example, that it is a
+  personal recount, a sales pitch, a bank-related call, or technical wording).
+  A coherent language lesson, story, song lyric, or ordinary conversation must
+  still receive an assessed low probability if it contains no scam indicators;
+  reserve "unable_to_assess" for empty, unreadable, or clearly hallucinated
+  text.
 - Write for an ordinary member of the public, including elderly users. Avoid jargon.`;
 
 export const CHAT_SYSTEM_PROMPT = `You are the ScamNoMore assistant, a friendly scam-prevention expert for the Singapore public.
@@ -336,6 +347,18 @@ export function buildAnalysisUserPrompt(signals: AnalysisSignals): string {
   if (signals.noSpeechDetected) {
     parts.push(
       'NOTE: No speech could be detected in this media, so there is no transcript to analyse. State that it cannot be assessed from this evidence; do not imply that silence means the content is safe.'
+    );
+  }
+
+  if (
+    (signals.source === 'voice' || signals.source === 'video' || signals.source === 'text') &&
+    (signals.transcript?.trim() || signals.text?.trim())
+  ) {
+    parts.push(
+      'Identify what the transcript or supplied text is about before scoring it. ' +
+        'If it is coherent and identifiable, assess it even when it is benign or has no scam-specific details; ' +
+        'use a low probability for that case. Use "unable_to_assess" only when the text is empty, unreadable, ' +
+        'or clearly hallucinated.'
     );
   }
 

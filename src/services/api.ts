@@ -259,6 +259,13 @@ export function normaliseAnalysisResult(value: unknown, language?: string): Anal
     ? raw.reasons.filter((reason): reason is string => typeof reason === 'string').slice(0, 5)
     : [];
   const advice = typeof raw.advice === 'string' ? raw.advice : '';
+  // Older backends may omit the top-level detectedText field even though they
+  // echo the transcript in signals. Preserve that evidence so a scoreless
+  // result can still tell the user what was actually analysed.
+  const detectedText =
+    typeof raw.detectedText === 'string' && raw.detectedText.trim()
+      ? raw.detectedText.trim()
+      : signals?.transcript?.trim() || signals?.text?.trim() || undefined;
   const probability = raw.probability;
   const unable =
     raw.assessmentStatus === 'unable_to_assess' ||
@@ -282,7 +289,7 @@ export function normaliseAnalysisResult(value: unknown, language?: string): Anal
       assessmentStatus: 'unable_to_assess',
       reasons,
       advice,
-      ...(typeof raw.detectedText === 'string' ? { detectedText: raw.detectedText } : {}),
+      ...(detectedText ? { detectedText } : {}),
       ...(signals
         ? {
             signals: {
@@ -304,7 +311,7 @@ export function normaliseAnalysisResult(value: unknown, language?: string): Anal
     ...(typeof raw.scamType === 'string' && raw.scamType.trim() ? { scamType: raw.scamType.trim() } : {}),
     reasons,
     advice,
-    ...(typeof raw.detectedText === 'string' ? { detectedText: raw.detectedText } : {}),
+    ...(detectedText ? { detectedText } : {}),
     ...(signals ? { signals } : {}),
     ...(language ? { language } : {}),
   };
@@ -312,6 +319,41 @@ export function normaliseAnalysisResult(value: unknown, language?: string): Anal
 
 function stampLanguage(result: unknown, language?: string): AnalysisResult {
   return normaliseAnalysisResult(result, language);
+}
+
+/**
+ * Conservative client-side guard for stale backends. Whisper can return a
+ * non-empty loop for music even when an older server does not flag it. Treat a
+ * dominant filler token or repeated phrase as no reliable speech so the fake
+ * transcript never reaches the scam analyser.
+ */
+export function isLikelyHallucinatedTranscript(text: string): boolean {
+  const tokens = text
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.toLocaleLowerCase().replace(/[.,!?，。！？;:]+/g, ''))
+    .filter(Boolean);
+  if (tokens.length < 9) return false;
+
+  const counts = new Map<string, number>();
+  for (const token of tokens) counts.set(token, (counts.get(token) ?? 0) + 1);
+  const dominant = Math.max(...counts.values());
+  if (dominant >= 6 && dominant >= Math.ceil(tokens.length * 0.6)) return true;
+
+  const maxBlockSize = Math.min(12, Math.floor(tokens.length / 3));
+  for (let size = 2; size <= maxBlockSize; size++) {
+    const blockCounts = new Map<string, number>();
+    for (let i = 0; i + size <= tokens.length; i++) {
+      const key = tokens.slice(i, i + size).join('\u0001');
+      blockCounts.set(key, (blockCounts.get(key) ?? 0) + 1);
+    }
+    for (const repeats of blockCounts.values()) {
+      if (repeats >= 3 && repeats * size >= Math.max(9, Math.ceil(tokens.length * 0.55))) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /** Shared transcription call for both the audio and video flows. */
@@ -327,11 +369,13 @@ async function transcribe(
     kind,
     explicitContentType
   );
+  const text = res.text?.trim() ?? '';
+  const likelyHallucinated = isLikelyHallucinatedTranscript(text);
   return {
-    text: res.text ?? '',
+    text: likelyHallucinated ? '' : text,
     // Treat an empty transcript as "no speech" even if the flag is absent, so an
     // older backend still produces the right message rather than a blank box.
-    noSpeechDetected: res.noSpeechDetected === true || !res.text?.trim(),
+    noSpeechDetected: res.noSpeechDetected === true || !text || likelyHallucinated,
   };
 }
 

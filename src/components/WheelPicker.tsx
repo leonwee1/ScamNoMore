@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 /**
  * Vertical wheel selector, like a native time picker: the option resting in the
@@ -24,12 +25,10 @@ import { colors, font, radius, spacing } from '../theme';
 const ITEM_H = 44;
 
 /**
- * Rows visible at once. Odd, so exactly one sits in the middle.
- *
- * Three keeps the control compact while still showing a neighbour above and
- * below, which is what signals the list can be scrolled.
+ * Rows visible at once. Four gives the Community picker enough room to show
+ * the first four room choices on entry while retaining the scrollable list.
  */
-const VISIBLE = 3;
+const VISIBLE = 4;
 
 const PAD = ((VISIBLE - 1) / 2) * ITEM_H;
 
@@ -43,6 +42,7 @@ export const WheelPicker: React.FC<{
   value?: string;
   onChange: (value: string) => void;
 }> = ({ options, value, onChange }) => {
+  const { scale } = useTextScale();
   const ref = useRef<ScrollView>(null);
   const index = Math.max(
     0,
@@ -98,7 +98,11 @@ export const WheelPicker: React.FC<{
               accessibilityLabel={opt.label}
             >
               <Text
-                style={[styles.label, active ? styles.labelActive : styles.labelIdle]}
+                style={[
+                  styles.label,
+                  { fontSize: scaled(active ? font.h3 : font.body, scale) },
+                  active ? styles.labelActive : styles.labelIdle,
+                ]}
                 numberOfLines={1}
               >
                 {opt.label}

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 export interface DropdownOption {
   /** Canonical value stored and filtered on. */
@@ -29,13 +30,14 @@ export const Dropdown: React.FC<{
   onChange: (value: string) => void;
 }> = ({ label, hint, value, options, onChange }) => {
   const [open, setOpen] = useState(false);
+  const { scale } = useTextScale();
   const current = options.find((o) => o.value === value);
 
   return (
     <View style={styles.wrap}>
       <View style={styles.labelRow}>
-        <Text style={styles.label}>{label}</Text>
-        {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+        <Text style={[styles.label, { fontSize: scaled(font.small, scale) }]}>{label}</Text>
+        {hint ? <Text style={[styles.hint, { fontSize: scaled(font.small, scale) }]}>{hint}</Text> : null}
       </View>
 
       <Pressable
@@ -44,10 +46,10 @@ export const Dropdown: React.FC<{
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${current?.label ?? ''}`}
       >
-        <Text style={styles.fieldText} numberOfLines={1}>
+        <Text style={[styles.fieldText, { fontSize: scaled(font.body, scale) }]} numberOfLines={1}>
           {current?.label ?? ''}
         </Text>
-        <Text style={styles.caret}>▾</Text>
+        <Text style={[styles.caret, { fontSize: scaled(font.body, scale) }]}>▾</Text>
       </Pressable>
 
       <Modal
@@ -60,7 +62,7 @@ export const Dropdown: React.FC<{
             avoids needing a visible cancel button. */}
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => undefined}>
-            <Text style={styles.sheetTitle}>{label}</Text>
+            <Text style={[styles.sheetTitle, { fontSize: scaled(font.small, scale) }]}>{label}</Text>
             <ScrollView style={styles.list}>
               {options.map((opt) => {
                 const active = opt.value === value;
@@ -75,10 +77,10 @@ export const Dropdown: React.FC<{
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
                   >
-                    <Text style={[styles.rowText, active && styles.rowTextActive]}>
+                    <Text style={[styles.rowText, { fontSize: scaled(font.body, scale) }, active && styles.rowTextActive]}>
                       {opt.label}
                     </Text>
-                    {active ? <Text style={styles.tick}>✓</Text> : null}
+                    {active ? <Text style={[styles.tick, { fontSize: scaled(font.body, scale) }]}>✓</Text> : null}
                   </Pressable>
                 );
               })}

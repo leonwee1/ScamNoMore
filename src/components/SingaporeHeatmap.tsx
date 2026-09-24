@@ -4,6 +4,7 @@ import Svg, { ClipPath, Defs, G, Path, Rect } from 'react-native-svg';
 import { SG_BOUNDS, SG_REGIONS } from '../data/singaporeGeo';
 import { TOWN_GEO } from '../data/townGeo';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 /**
  * Where reported scams concentrate, as a kernel-density heatmap over a real
@@ -86,6 +87,7 @@ export const SingaporeHeatmap: React.FC<{
   higherLabel: string;
 }> = ({ data, title, subtitle, lowerLabel, higherLabel }) => {
   const [width, setWidth] = useState(0);
+  const { scale } = useTextScale();
 
   const { minLng, maxLng, minLat, maxLat } = SG_BOUNDS;
   const spanLng = maxLng - minLng;
@@ -167,8 +169,8 @@ export const SingaporeHeatmap: React.FC<{
   return (
     <View style={styles.wrap}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <Text style={[styles.title, { fontSize: scaled(font.h3, scale) }]}>{title}</Text>
+        <Text style={[styles.subtitle, { fontSize: scaled(font.small, scale) }]}>{subtitle}</Text>
       </View>
 
       <View style={styles.canvas} onLayout={onLayout}>
@@ -227,7 +229,7 @@ export const SingaporeHeatmap: React.FC<{
                   accessible
                   accessibilityLabel={`${d.town}: ${d.count}`}
                 >
-                  <Text style={styles.pinText} numberOfLines={1}>
+                  <Text style={[styles.pinText, { fontSize: scaled(10, scale) }]} numberOfLines={1}>
                     {d.town} {d.count}
                   </Text>
                 </View>
@@ -238,7 +240,7 @@ export const SingaporeHeatmap: React.FC<{
       </View>
 
       <View style={styles.legend}>
-        <Text style={styles.legendText}>{lowerLabel}</Text>
+        <Text style={[styles.legendText, { fontSize: scaled(font.small, scale) }]}>{lowerLabel}</Text>
         <View style={styles.legendBar}>
           {Array.from({ length: 24 }, (_, i) => (
             <View
@@ -247,7 +249,7 @@ export const SingaporeHeatmap: React.FC<{
             />
           ))}
         </View>
-        <Text style={styles.legendText}>{higherLabel}</Text>
+        <Text style={[styles.legendText, { fontSize: scaled(font.small, scale) }]}>{higherLabel}</Text>
       </View>
     </View>
   );

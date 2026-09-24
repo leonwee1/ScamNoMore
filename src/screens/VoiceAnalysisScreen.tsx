@@ -17,6 +17,7 @@ import { AnalysisResult, unableToAssessResult } from '../services/analysis';
 import { api, MAX_MEDIA_MB } from '../services/api';
 import { pickAudio } from '../services/media';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 /**
  * Voice flow (wireframe): upload audio OR record ("say what happened", max 5
@@ -28,6 +29,7 @@ import { colors, font, radius, spacing } from '../theme';
  */
 export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   const { t, lang } = useI18n();
+  const { scale } = useTextScale();
   const mode: 'record' | 'upload' = route.params?.mode ?? 'record';
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -38,7 +40,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { requestConsent, consentDialog } = useMediaPrivacyConsent();
+  const { requestConsent, resetConsent, consentDialog } = useMediaPrivacyConsent('audio');
 
   const transcribe = async (uri: string, contentType?: string) => {
     setBusy(true);
@@ -65,8 +67,8 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
     }
   };
 
-  const requestTranscription = (uri: string, contentType?: string) => {
-    requestConsent(() => transcribe(uri, contentType));
+  const requestTranscription = (uri: string, contentType?: string, forceConsent = false) => {
+    requestConsent(() => transcribe(uri, contentType), forceConsent);
   };
 
   const toggleRecording = async () => {
@@ -74,7 +76,10 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
       if (recorderState.isRecording) {
         await recorder.stop();
         const uri = recorder.uri;
-        if (uri) requestTranscription(uri);
+        if (uri) {
+          resetConsent();
+          requestTranscription(uri, undefined, true);
+        }
         return;
       }
       const perm = await AudioModule.requestRecordingPermissionsAsync();
@@ -97,7 +102,8 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
       setError(t('analyze.noAudio'));
       return;
     }
-    requestTranscription(picked.uri, picked.mimeType);
+    resetConsent();
+    requestTranscription(picked.uri, picked.mimeType, true);
   };
 
   // In upload mode, open the file picker straight away — the user already chose
@@ -162,7 +168,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
         <Card>
           <Muted>{t('analyze.transcribed')}</Muted>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { fontSize: scaled(16, scale), lineHeight: scaled(23, scale) }]}
             multiline
             value={transcript}
             onChangeText={setTranscript}
@@ -190,13 +196,14 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   input: {
-    minHeight: 120,
+    minHeight: 140,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     padding: spacing.md,
     color: colors.text,
-    fontSize: font.body,
+    fontSize: 16,
+    lineHeight: 23,
     textAlignVertical: 'top',
     backgroundColor: colors.surfaceAlt,
   },

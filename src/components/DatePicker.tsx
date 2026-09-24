@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Lang, useI18n } from '../i18n';
 import { colors, font, radius, spacing } from '../theme';
+import { scaled, useTextScale } from '../textScale';
 
 /**
  * Calendar date field. Tapping it opens a month grid instead of asking the user
@@ -65,6 +66,7 @@ export const DatePicker: React.FC<{
   accessibilityLabel?: string;
 }> = ({ value, onChange, maxDate, minDate, accessibilityLabel }) => {
   const { lang } = useI18n();
+  const { scale } = useTextScale();
   const [open, setOpen] = useState(false);
 
   // Month currently on display, seeded from the selected value.
@@ -111,8 +113,8 @@ export const DatePicker: React.FC<{
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel ? `${accessibilityLabel}: ${value}` : value}
       >
-        <Text style={styles.fieldText}>{value}</Text>
-        <Text style={styles.fieldIcon}>📅</Text>
+        <Text style={[styles.fieldText, { fontSize: scaled(font.body, scale) }]}>{value}</Text>
+        <Text style={[styles.fieldIcon, { fontSize: scaled(font.h3, scale) }]}>📅</Text>
       </Pressable>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
@@ -120,18 +122,18 @@ export const DatePicker: React.FC<{
           <Pressable style={styles.sheet} onPress={() => undefined}>
             <View style={styles.navRow}>
               <Pressable onPress={() => shift(-1)} style={styles.navBtn} hitSlop={8}>
-                <Text style={styles.navText}>‹</Text>
+                <Text style={[styles.navText, { fontSize: scaled(font.h2, scale) }]}>‹</Text>
               </Pressable>
-              <Text style={styles.monthText}>{monthLabel(view.year, view.month, lang)}</Text>
+              <Text style={[styles.monthText, { fontSize: scaled(font.h3, scale) }]}>{monthLabel(view.year, view.month, lang)}</Text>
               <Pressable onPress={() => shift(1)} style={styles.navBtn} hitSlop={8}>
-                <Text style={styles.navText}>›</Text>
+                <Text style={[styles.navText, { fontSize: scaled(font.h2, scale) }]}>›</Text>
               </Pressable>
             </View>
 
             <View style={styles.grid}>
               {weekdays.map((w, i) => (
                 <View key={`w${i}`} style={styles.cell}>
-                  <Text style={styles.weekday}>{w}</Text>
+                  <Text style={[styles.weekday, { fontSize: scaled(font.small, scale) }]}>{w}</Text>
                 </View>
               ))}
 
@@ -156,6 +158,7 @@ export const DatePicker: React.FC<{
                     <Text
                       style={[
                         styles.day,
+                        { fontSize: scaled(font.body, scale) },
                         isSelected && styles.daySelected,
                         isOff && styles.dayOff,
                       ]}

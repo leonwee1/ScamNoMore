@@ -1,7 +1,12 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { isAssessed, riskFromProbability, riskLabelKey } from '../services/analysis';
-import { BackendNotConfiguredError, contentTypeFor, normaliseAnalysisResult } from '../services/api';
+import {
+  BackendNotConfiguredError,
+  contentTypeFor,
+  isLikelyHallucinatedTranscript,
+  normaliseAnalysisResult,
+} from '../services/api';
 import { _dicts } from '../i18n';
 
 describe('riskFromProbability', () => {
@@ -134,6 +139,17 @@ describe('analysis response safety', () => {
     expect(result.reasons).toEqual(['The image shows a C++ stack trace, not a message or offer.']);
   });
 
+  it('keeps transcript evidence when an older backend omits detectedText', () => {
+    const result = normaliseAnalysisResult({
+      assessmentStatus: 'unable_to_assess',
+      signals: {
+        source: 'voice',
+        transcript: 'The caller says I must transfer money immediately.',
+      },
+    });
+    expect(result.detectedText).toBe('The caller says I must transfer money immediately.');
+  });
+
   it('rejects a malformed assessed object at the final render guard', () => {
     const malformed = {
       assessmentStatus: 'assessed',
@@ -143,6 +159,20 @@ describe('analysis response safety', () => {
       advice: '',
     } as unknown as import('../services/analysis').AnalysisResult;
     expect(isAssessed(malformed)).toBe(false);
+  });
+});
+
+describe('transcript hallucination guard', () => {
+  it('recognises music-style repeated filler from a stale backend', () => {
+    expect(isLikelyHallucinatedTranscript('Oh, oh, oh, oh, oh, oh, oh, oh, oh, oh.')).toBe(true);
+  });
+
+  it('does not reject a normal transcript', () => {
+    expect(
+      isLikelyHallucinatedTranscript(
+        'The caller said I must verify my bank account immediately or it will be closed.'
+      )
+    ).toBe(false);
   });
 });
 
