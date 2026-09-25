@@ -139,7 +139,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
-        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" showBack />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} showBack />
 
         <Card>
           {/* Only meaningful when the user is choosing an existing file. When

@@ -157,7 +157,7 @@ export const CommunityScreen: React.FC = () => {
               }
             }}
           >
-            <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
+            <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} />
             <Card>
               <SubHeading>
                 {t('community.youAreIn')}: {domain.scamType(room)} {t('community.roomSuffix')}
@@ -250,7 +250,7 @@ export const CommunityScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" stickyHeaderIndices={[0]}>
-        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} />
         <Card>
           <SubHeading style={{ fontSize: scaled(18, scale) }}>{t('community.pickRoom')}</SubHeading>
           <WheelPicker

@@ -46,24 +46,107 @@ conservative next steps; it never treats an inconclusive result as safe.
 - Node.js + TypeScript backend, OpenAI vision/text and Whisper APIs
 - SQLite (`better-sqlite3`) for submitted reports and community messages
 
-## Run locally
+## Run ScamNoMore on a mobile phone
 
-```powershell
-# Backend: holds the OpenAI API key and local SQLite file
-cd backend
-npm install
-copy .env.example .env
-# Set OPENAI_API_KEY (and optionally APP_SHARED_SECRET) in .env
-npm run dev
+The phone runs the Expo app through **Expo Go**. The QR code you scan is the QR
+code printed by `npx expo start`; it is not the backend health-check URL.
 
-# App: set apiBaseUrl in app.json to your LAN address, then start Expo
-cd ..
-npm install
-npx expo start -c
-```
+### Recommended: use the shared Render backend
 
-Scan the QR code with Expo Go. For devices on your Wi-Fi, `apiBaseUrl` must use
-your computer's LAN IP rather than `localhost`. See [setup instructions](docs/SETUP.md).
+This is the simplest way to let a teammate try the app. The laptop only needs
+to serve the Expo JavaScript bundle; analysis, chatbot, reports, and community
+requests go to the public backend.
+
+1. Install **Node.js LTS** on the laptop and **Expo Go** on the phone.
+2. Clone the repository and open PowerShell in the project folder:
+
+   ```powershell
+   git clone https://github.com/leonwee1/ScamNoMore.git
+   cd ScamNoMore
+   npm install
+   ```
+
+3. Open `app.json` and confirm that `expo.extra.apiBaseUrl` points to the
+   deployed backend:
+
+   ```json
+   "apiBaseUrl": "https://scamnomore.onrender.com"
+   ```
+
+4. Start Expo with a tunnel:
+
+   ```powershell
+   npx expo start -c --tunnel
+   ```
+
+5. Wait for the terminal to display a QR code. Open **Expo Go**, choose its QR
+   scanner, and scan that QR code. On iPhone, the Camera app can also open the
+   Expo link and then hand it to Expo Go.
+6. Keep PowerShell running while using the app. The phone and laptop do not
+   need to be on the same Wi-Fi when `--tunnel` is working.
+
+To check the backend separately, open
+`https://scamnomore.onrender.com/health` in a browser. That page only reports
+backend health; it is not an app QR code and cannot launch Expo Go.
+
+### Local backend option (same Wi-Fi)
+
+Use this when developing the Node backend on the laptop itself:
+
+1. In a second PowerShell window, configure and start the backend:
+
+   ```powershell
+   cd backend
+   npm install
+   copy .env.example .env
+   # Edit .env and set OPENAI_API_KEY (and optionally APP_SHARED_SECRET)
+   npm run dev
+   ```
+
+2. Find the laptop's Wi-Fi IPv4 address:
+
+   ```powershell
+   ipconfig
+   ```
+
+   Look for the IPv4 address under the active Wi-Fi adapter, for example
+   `192.168.1.25`.
+
+3. In `app.json`, set the API URL to the laptop's address, not `localhost`:
+
+   ```json
+   "apiBaseUrl": "http://192.168.1.25:3000"
+   ```
+
+4. Make sure the phone and laptop are on the same Wi-Fi, then start Expo from
+   the repository root:
+
+   ```powershell
+   cd ..
+   npx expo start -c --lan
+   ```
+
+5. Scan the QR code shown by Expo Go. If the phone cannot connect, allow Node.js
+   through Windows Firewall or use the shared Render backend with `--tunnel`.
+
+Local reports and community messages are stored in
+`backend/data/scamnomore.sqlite`. They are not available to other phones unless
+those phones use the same reachable backend. For a shared deployment, use the
+Render persistent-disk setup described in [the Render deployment guide](docs/DEPLOY_RENDER.md).
+
+### Common problems
+
+- **“No apps connected”**: Expo is running, but no phone has opened the QR link
+  yet. Scan the QR code with Expo Go.
+- **Tunnel error / “remote gone away”**: restart Expo and try
+  `npx expo start -c --tunnel` again. If both devices are on the same Wi-Fi,
+  use `--lan` instead.
+- **The app opens but analysis or reports fail**: check `apiBaseUrl`, confirm
+  the backend health page is reachable, and wait briefly if Render is waking up.
+- **Camera, microphone, or photo access fails**: grant the requested permission
+  to Expo Go in the phone's system settings.
+
+See the fuller [setup instructions](docs/SETUP.md) for development details.
 
 ### Test and type-check
 

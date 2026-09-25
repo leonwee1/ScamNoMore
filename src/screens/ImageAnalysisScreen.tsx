@@ -64,7 +64,7 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
-        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" showBack />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} showBack />
 
         <Card>
           {/* The group name now lives in the stack header, so repeating it here

@@ -61,7 +61,7 @@ const en = {
   'home.video.group': 'Video',
   'home.uploadVideo': 'Upload video file',
   'home.latestVerified': 'Latest verified cases',
-  'home.viewAllCases': 'View all cases',
+  'home.viewAllCases': 'Search cases',
   'home.cautionTitle': 'Never share confidential details',
   'home.caution':
     'Never share OTPs, NRIC numbers, passwords, Singpass details or full card numbers. Remove them before uploading.',
@@ -291,7 +291,7 @@ const zh: Dict = {
   'home.video.group': '视频',
   'home.uploadVideo': '上传视频',
   'home.latestVerified': '最新已验证案例',
-  'home.viewAllCases': '查看所有案例',
+  'home.viewAllCases': '搜索案例',
   'home.cautionTitle': '切勿透露机密资料',
   'home.caution':
     '切勿透露一次性密码（OTP）、身份证号码、密码、Singpass 资料或完整信用卡号码。上传前请先删除这些资料。',
@@ -499,7 +499,7 @@ const ms: Dict = {
   'home.video.group': 'Video',
   'home.uploadVideo': 'Muat naik video',
   'home.latestVerified': 'Kes terkini yang disahkan',
-  'home.viewAllCases': 'Lihat semua kes',
+  'home.viewAllCases': 'Cari kes',
   'home.cautionTitle': 'Jangan kongsi maklumat sulit',
   'home.caution':
     'Jangan kongsi OTP, nombor NRIC, kata laluan, butiran Singpass atau nombor kad penuh. Padamkan maklumat ini sebelum memuat naik.',
@@ -721,7 +721,7 @@ const ta: Dict = {
   'home.video.group': 'வீடியோ',
   'home.uploadVideo': 'வீடியோ பதிவேற்று',
   'home.latestVerified': 'சமீபத்திய சரிபார்க்கப்பட்ட வழக்குகள்',
-  'home.viewAllCases': 'அனைத்து வழக்குகளையும் காண்க',
+  'home.viewAllCases': 'வழக்குகளைத் தேடுங்கள்',
   'home.cautionTitle': 'ரகசியத் தகவல்களைப் பங்கிடாதீர்கள்',
   'home.caution':
     'OTP, NRIC எண், கடவுச்சொல், Singpass விவரங்கள் அல்லது முழு அட்டை எண்களைப் பகிர வேண்டாம். பதிவேற்றும் முன் இவற்றை நீக்கவும்.',

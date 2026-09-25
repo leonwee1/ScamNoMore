@@ -103,7 +103,7 @@ export const VideoAnalysisScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
-        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" showBack />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} showBack />
 
         <Card>
           <Muted>{t('analyze.videoLimits', { size: MAX_MEDIA_MB })}</Muted>

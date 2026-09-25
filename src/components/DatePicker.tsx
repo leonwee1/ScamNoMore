@@ -43,6 +43,14 @@ function monthLabel(year: number, month: number, lang: Lang): string {
   }
 }
 
+function shortMonthLabel(year: number, month: number, lang: Lang): string {
+  try {
+    return new Date(year, month, 1).toLocaleDateString(LOCALES[lang], { month: 'short' });
+  } catch {
+    return pad(month + 1);
+  }
+}
+
 /** Weekday initials starting Sunday, localized where possible. */
 function weekdayLabels(lang: Lang): string[] {
   try {
@@ -68,14 +76,23 @@ export const DatePicker: React.FC<{
   const { lang } = useI18n();
   const { scale } = useTextScale();
   const [open, setOpen] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'calendar' | 'monthYear'>('calendar');
 
   // Month currently on display, seeded from the selected value.
   const parsed = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   const initialYear = parsed ? Number(parsed[1]) : new Date().getFullYear();
   const initialMonth = parsed ? Number(parsed[2]) - 1 : new Date().getMonth();
   const [view, setView] = useState({ year: initialYear, month: initialMonth });
+  const [yearRangeStart, setYearRangeStart] = useState(initialYear - 5);
 
   const weekdays = useMemo(() => weekdayLabels(lang), [lang]);
+  // Show a compact, pageable year range. There is deliberately no lower bound:
+  // the previous-range control lets users reach arbitrarily old dates.
+  const yearOptions = useMemo(
+    () => Array.from({ length: 12 }, (_, i) => yearRangeStart + i)
+      .filter((year) => !maxDate || year <= Number(maxDate.slice(0, 4))),
+    [maxDate, yearRangeStart]
+  );
 
   /** Day cells for the visible month, padded so the 1st lands on its weekday. */
   const cells = useMemo(() => {
@@ -93,6 +110,12 @@ export const DatePicker: React.FC<{
     return false;
   };
 
+  const monthDisabled = (month: number) => {
+    const first = iso(view.year, month, 1);
+    const last = iso(view.year, month, new Date(view.year, month + 1, 0).getDate());
+    return Boolean((maxDate && first > maxDate) || (minDate && last < minDate));
+  };
+
   const shift = (by: number) => {
     const m = view.month + by;
     setView({
@@ -101,12 +124,18 @@ export const DatePicker: React.FC<{
     });
   };
 
+  const shiftYearRange = (by: number) => {
+    setYearRangeStart((start) => start + by * 12);
+  };
+
   return (
     <>
       <Pressable
         onPress={() => {
           // Reopen on the month of whatever is currently selected.
           setView({ year: initialYear, month: initialMonth });
+          setYearRangeStart(initialYear - 5);
+          setPickerMode('calendar');
           setOpen(true);
         }}
         style={styles.field}
@@ -119,56 +148,131 @@ export const DatePicker: React.FC<{
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => undefined}>
-            <View style={styles.navRow}>
-              <Pressable onPress={() => shift(-1)} style={styles.navBtn} hitSlop={8}>
-                <Text style={[styles.navText, { fontSize: scaled(font.h2, scale) }]}>‹</Text>
-              </Pressable>
-              <Text style={[styles.monthText, { fontSize: scaled(font.h3, scale) }]}>{monthLabel(view.year, view.month, lang)}</Text>
-              <Pressable onPress={() => shift(1)} style={styles.navBtn} hitSlop={8}>
-                <Text style={[styles.navText, { fontSize: scaled(font.h2, scale) }]}>›</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.grid}>
-              {weekdays.map((w, i) => (
-                <View key={`w${i}`} style={styles.cell}>
-                  <Text style={[styles.weekday, { fontSize: scaled(font.small, scale) }]}>{w}</Text>
-                </View>
-              ))}
-
-              {cells.map((day, i) => {
-                if (day === null) return <View key={`p${i}`} style={styles.cell} />;
-                const d = iso(view.year, view.month, day);
-                const isSelected = d === value;
-                const isOff = disabled(day);
-                return (
+          <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
+            {pickerMode === 'calendar' ? (
+              <>
+                <View style={styles.navRow}>
+                  <Pressable onPress={() => shift(-1)} style={styles.navBtn} hitSlop={8}>
+                    <Text style={[styles.navText, { fontSize: scaled(font.h2, scale) }]}>‹</Text>
+                  </Pressable>
                   <Pressable
-                    key={d}
-                    disabled={isOff}
-                    onPress={() => {
-                      onChange(d);
-                      setOpen(false);
-                    }}
-                    style={[styles.cell, isSelected && styles.cellSelected]}
+                    onPress={() => setPickerMode('monthYear')}
+                    style={styles.monthButton}
                     accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected, disabled: isOff }}
-                    accessibilityLabel={d}
+                    accessibilityLabel="Choose month and year"
                   >
-                    <Text
-                      style={[
-                        styles.day,
-                        { fontSize: scaled(font.body, scale) },
-                        isSelected && styles.daySelected,
-                        isOff && styles.dayOff,
-                      ]}
-                    >
-                      {day}
+                    <Text style={[styles.monthText, { fontSize: scaled(font.h3, scale) }]}>
+                      {monthLabel(view.year, view.month, lang)}
                     </Text>
                   </Pressable>
-                );
-              })}
-            </View>
+                  <Pressable onPress={() => shift(1)} style={styles.navBtn} hitSlop={8}>
+                    <Text style={[styles.navText, { fontSize: scaled(font.h2, scale) }]}>›</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.grid}>
+                  {weekdays.map((w, i) => (
+                    <View key={`w${i}`} style={styles.cell}>
+                      <Text style={[styles.weekday, { fontSize: scaled(font.small, scale) }]}>{w}</Text>
+                    </View>
+                  ))}
+
+                  {cells.map((day, i) => {
+                    if (day === null) return <View key={`p${i}`} style={styles.cell} />;
+                    const d = iso(view.year, view.month, day);
+                    const isSelected = d === value;
+                    const isOff = disabled(day);
+                    return (
+                      <Pressable
+                        key={d}
+                        disabled={isOff}
+                        onPress={() => {
+                          onChange(d);
+                          setOpen(false);
+                        }}
+                        style={[styles.cell, isSelected && styles.cellSelected]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected, disabled: isOff }}
+                        accessibilityLabel={d}
+                      >
+                        <Text
+                          style={[
+                            styles.day,
+                            { fontSize: scaled(font.body, scale) },
+                            isSelected && styles.daySelected,
+                            isOff && styles.dayOff,
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <View style={styles.monthYearPicker}>
+                <View style={styles.pickerTitleRow}>
+                  <Text style={[styles.pickerTitle, { fontSize: scaled(font.h3, scale) }]}>Choose month and year</Text>
+                  <Pressable onPress={() => setPickerMode('calendar')} accessibilityRole="button">
+                    <Text style={[styles.doneText, { fontSize: scaled(font.small, scale) }]}>Done</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.yearRangeRow}>
+                  <Pressable onPress={() => shiftYearRange(-1)} style={styles.rangeButton} accessibilityRole="button" accessibilityLabel="Earlier years">
+                    <Text style={[styles.navText, { fontSize: scaled(font.h2, scale) }]}>‹</Text>
+                  </Pressable>
+                  <Text style={[styles.yearRangeText, { fontSize: scaled(font.body, scale) }]}>
+                    {yearOptions[0]}–{yearOptions[yearOptions.length - 1]}
+                  </Text>
+                  <Pressable
+                    onPress={() => shiftYearRange(1)}
+                    disabled={Boolean(maxDate && yearOptions[yearOptions.length - 1] >= Number(maxDate.slice(0, 4)))}
+                    style={styles.rangeButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Later years"
+                  >
+                    <Text style={[styles.navText, { fontSize: scaled(font.h2, scale) }]}>›</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.yearGrid}>
+                  {yearOptions.map((year) => (
+                    <Pressable
+                      key={year}
+                      onPress={() => setView((current) => ({ ...current, year }))}
+                      style={[styles.yearButton, year === view.year && styles.choiceSelected]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: year === view.year }}
+                    >
+                      <Text style={[styles.choiceText, { fontSize: scaled(font.body, scale) }, year === view.year && styles.choiceTextSelected]}>{year}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.monthGrid}>
+                  {Array.from({ length: 12 }, (_, month) => {
+                    const isOff = monthDisabled(month);
+                    const selected = month === view.month;
+                    return (
+                      <Pressable
+                        key={month}
+                        disabled={isOff}
+                        onPress={() => {
+                          setView((current) => ({ ...current, month }));
+                          setPickerMode('calendar');
+                        }}
+                        style={[styles.monthChoice, selected && styles.choiceSelected]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected, disabled: isOff }}
+                      >
+                        <Text style={[styles.choiceText, { fontSize: scaled(font.small, scale) }, selected && styles.choiceTextSelected, isOff && styles.dayOff]}>
+                          {shortMonthLabel(view.year, month, lang)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -221,6 +325,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     backgroundColor: colors.surfaceAlt,
   },
+  monthButton: {
+    minHeight: 40,
+    minWidth: 150,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+  },
   navText: { color: colors.primary, fontSize: font.h2, fontWeight: '800' },
   monthText: { color: colors.text, fontSize: font.h3, fontWeight: '800' },
   // 7 cells per row, sized so the whole month fits without scrolling.
@@ -233,4 +346,50 @@ const styles = StyleSheet.create({
   // Future dates stay visible but clearly unavailable, which explains itself
   // better than hiding them would.
   dayOff: { color: colors.border },
+  monthYearPicker: { width: CELL * 7, gap: spacing.md },
+  pickerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  pickerTitle: { color: colors.text, fontWeight: '800' },
+  doneText: { color: colors.primary, fontWeight: '800' },
+  yearRangeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  rangeButton: {
+    width: 40,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceAlt,
+  },
+  yearRangeText: { color: colors.text, fontWeight: '800' },
+  yearGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  yearButton: {
+    minWidth: 58,
+    minHeight: 40,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceAlt,
+  },
+  monthGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  monthChoice: {
+    width: 49,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceAlt,
+  },
+  choiceSelected: { backgroundColor: colors.primary },
+  choiceText: { color: colors.text, fontWeight: '700' },
+  choiceTextSelected: { color: colors.white },
 });

@@ -11,7 +11,7 @@ import { scamStore, scamTypes, towns } from '../data/scamStore';
 import { useI18n } from '../i18n';
 import { useDomain } from '../i18n/useDomain';
 import { DatePicker } from '../components/DatePicker';
-import { deviceToday, monthsAgo } from '../services/dates';
+import { deviceToday } from '../services/dates';
 import { api } from '../services/api';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
@@ -125,7 +125,7 @@ export const ReportScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
           stickyHeaderIndices={[0]}
         >
-        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} />
 
         {submitted ? (
           <View style={styles.successBox}>
@@ -150,14 +150,10 @@ export const ReportScreen: React.FC = () => {
                 <Muted style={styles.requiredLabel}>{t('report.date')}</Muted>
                 <Muted>{t('search.required')}</Muted>
               </View>
-              {/* maxDate is today: an incident cannot be reported before it happens,
-                  and blocking it in the calendar is clearer than validating after
-                  the fact. */}
               <DatePicker
                 value={date}
                 onChange={setDate}
                 maxDate={deviceToday()}
-                minDate={monthsAgo(60)}
                 accessibilityLabel={t('report.date')}
               />
             </View>

@@ -126,7 +126,7 @@ export const SearchScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" stickyHeaderIndices={[0]}>
-        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} />
 
         <Card>
           <Dropdown
