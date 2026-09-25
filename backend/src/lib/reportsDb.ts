@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { mkdirSync } from 'fs';
 import { dirname, resolve } from 'path';
 import Database from 'better-sqlite3';
@@ -38,6 +38,7 @@ interface StoredCommunityMessage {
   room_key: string;
   body: string;
   created_at: string;
+  participant_hash: string;
 }
 
 /** Public anonymous discussion row. There is deliberately no account/profile data. */
@@ -46,6 +47,7 @@ export interface CommunityMessage {
   roomKey: string;
   text: string;
   createdAt: string;
+  participantKey: string;
 }
 
 export interface CommunityMessageCursor {
@@ -74,6 +76,7 @@ const MAX_FIELD_CHARS = 100;
 const MAX_DESCRIPTION_CHARS = 4_000;
 const MAX_DESCRIPTION_WORDS = 200;
 const MAX_COMMUNITY_MESSAGE_CHARS = 500;
+const MAX_PARTICIPANT_ID_CHARS = 128;
 
 /** Natural-looking starter conversations shown in each room on first startup. */
 const COMMUNITY_SEED_MESSAGES: Record<string, readonly string[]> = {
@@ -208,7 +211,8 @@ function openDatabase(): Database.Database {
       id TEXT PRIMARY KEY,
       room_key TEXT NOT NULL,
       body TEXT NOT NULL,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      participant_hash TEXT NOT NULL DEFAULT ''
     );
 
     CREATE INDEX IF NOT EXISTS idx_community_messages_room_created_at
@@ -220,6 +224,41 @@ function openDatabase(): Database.Database {
     UPDATE incident_reports SET keywords_json = '[]' WHERE keywords_json <> '[]';
   `);
 
+  // Migrate databases created before anonymous participant labels existed.
+  // Only a one-way room-scoped hash is retained; the client token and any
+  // personal identity never reach SQLite.
+  const communityColumns = next
+    .prepare('PRAGMA table_info(community_messages)')
+    .all() as Array<{ name: string }>;
+  if (!communityColumns.some((column) => column.name === 'participant_hash')) {
+    next.exec('ALTER TABLE community_messages ADD COLUMN participant_hash TEXT');
+  }
+  const legacyRows = next
+    .prepare(
+      `SELECT id, room_key
+       FROM community_messages
+       WHERE participant_hash IS NULL OR participant_hash = ''`
+    )
+    .all() as Array<{ id: string; room_key: string }>;
+  if (legacyRows.length > 0) {
+    const updateParticipant = next.prepare(
+      'UPDATE community_messages SET participant_hash = @participant_hash WHERE id = @id'
+    );
+    const migrateParticipants = next.transaction(() => {
+      for (const row of legacyRows) {
+        const seedMatch = /^community-seed-.+-(\d+)$/.exec(row.id);
+        const participantId = seedMatch
+          ? `seed-${((Number(seedMatch[1]) - 1) % 3) + 1}`
+          : `legacy-${row.id}`;
+        updateParticipant.run({
+          id: row.id,
+          participant_hash: participantHash(row.room_key, participantId),
+        });
+      }
+    });
+    migrateParticipants();
+  }
+
   seedCommunityMessages(next);
 
   database = next;
@@ -230,8 +269,9 @@ function openDatabase(): Database.Database {
 /** Insert deterministic starter rows without duplicating them on restart. */
 function seedCommunityMessages(db: Database.Database): void {
   const insert = db.prepare(
-    `INSERT OR IGNORE INTO community_messages (id, room_key, body, created_at)
-     VALUES (@id, @room_key, @body, @created_at)`
+    `INSERT OR IGNORE INTO community_messages
+      (id, room_key, body, created_at, participant_hash)
+     VALUES (@id, @room_key, @body, @created_at, @participant_hash)`
   );
   const seed = db.transaction(() => {
     for (const [roomKey, messages] of Object.entries(COMMUNITY_SEED_MESSAGES)) {
@@ -242,6 +282,7 @@ function seedCommunityMessages(db: Database.Database): void {
           room_key: roomKey,
           body,
           created_at: new Date(Date.now() - (messages.length - index) * 60_000).toISOString(),
+          participant_hash: participantHash(roomKey, `seed-${(index % 3) + 1}`),
         });
       });
     }
@@ -377,12 +418,22 @@ function validateCommunityRoom(value: unknown): string {
   return roomKey;
 }
 
+/** Hash the device token separately for each room to limit cross-room linking. */
+function participantHash(roomKey: string, participantId: string): string {
+  return createHash('sha256').update(`${roomKey}\u0000${participantId}`).digest('hex');
+}
+
+function participantKey(hash: string): string {
+  return hash.slice(0, 4).toUpperCase();
+}
+
 function toCommunityMessage(row: StoredCommunityMessage): CommunityMessage {
   return {
     id: row.id,
     roomKey: row.room_key,
     text: row.body,
     createdAt: row.created_at,
+    participantKey: participantKey(row.participant_hash),
   };
 }
 
@@ -394,17 +445,23 @@ export function createCommunityMessage(value: unknown): CommunityMessage {
   const input = value as Record<string, unknown>;
   const roomKey = validateCommunityRoom(input.roomKey);
   const text = requiredText(input.text, 'text', MAX_COMMUNITY_MESSAGE_CHARS);
+  const participantId =
+    input.participantId === undefined
+      ? `legacy-${randomUUID()}`
+      : requiredText(input.participantId, 'participantId', MAX_PARTICIPANT_ID_CHARS);
 
   const row: StoredCommunityMessage = {
     id: `community-message-${randomUUID()}`,
     room_key: roomKey,
     body: text,
     created_at: new Date().toISOString(),
+    participant_hash: participantHash(roomKey, participantId),
   };
   openDatabase()
     .prepare(
-      `INSERT INTO community_messages (id, room_key, body, created_at)
-       VALUES (@id, @room_key, @body, @created_at)`
+      `INSERT INTO community_messages
+        (id, room_key, body, created_at, participant_hash)
+       VALUES (@id, @room_key, @body, @created_at, @participant_hash)`
     )
     .run(row);
   return toCommunityMessage(row);
@@ -431,7 +488,7 @@ export function listCommunityMessagePage(
   const rows = (before
     ? openDatabase()
         .prepare(
-          `SELECT id, room_key, body, created_at
+          `SELECT id, room_key, body, created_at, participant_hash
            FROM community_messages
            WHERE room_key = ? AND (created_at < ? OR (created_at = ? AND id < ?))
            ORDER BY created_at DESC, id DESC
@@ -440,7 +497,7 @@ export function listCommunityMessagePage(
         .all(roomKey, before.createdAt, before.createdAt, before.id)
     : openDatabase()
         .prepare(
-          `SELECT id, room_key, body, created_at
+          `SELECT id, room_key, body, created_at, participant_hash
            FROM community_messages
            WHERE room_key = ?
            ORDER BY created_at DESC, id DESC

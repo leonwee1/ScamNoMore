@@ -10,7 +10,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0B1B2B"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -20,7 +22,11 @@
       }
     },
     "android": {
-      "permissions": ["CAMERA", "RECORD_AUDIO", "READ_EXTERNAL_STORAGE"]
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "READ_EXTERNAL_STORAGE"
+      ]
     },
     "plugins": [
       "expo-image-picker",
@@ -29,7 +35,8 @@
         {
           "microphonePermission": "ScamNoMore uses the microphone to analyze suspicious voice recordings."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "apiBaseUrl": "https://scamnomore.onrender.com",

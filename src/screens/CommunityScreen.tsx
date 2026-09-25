@@ -14,11 +14,13 @@ import { BrandMark } from '../components/BrandMark';
 import { ScreenHeader } from '../components/ScreenHeader';
 import { useTranslatedGuidance } from '../components/useTranslatedGuidance';
 import { WheelPicker } from '../components/WheelPicker';
+import { SpeakButton } from '../components/SpeakButton';
 import { Body, Button, Card, Muted, SubHeading } from '../components/ui';
 import { scamTypes } from '../data/scamStore';
 import { useI18n } from '../i18n';
 import { useDomain } from '../i18n/useDomain';
 import { api, CommunityMessage, CommunityMessageCursor } from '../services/api';
+import { getCommunityParticipantId } from '../services/communityIdentity';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
 
@@ -48,27 +50,32 @@ export const CommunityScreen: React.FC = () => {
     return types[1] ?? types[0];
   });
   const guidance = useTranslatedGuidance(room);
-  const [aboutOpen, setAboutOpen] = useState(true);
-  const [handlingOpen, setHandlingOpen] = useState(true);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [handlingOpen, setHandlingOpen] = useState(false);
   const [joined, setJoined] = useState(false);
   const [messages, setMessages] = useState<CommunityMessage[]>([]);
   const [nextBefore, setNextBefore] = useState<CommunityMessageCursor | undefined>();
   const [ownMessageIds, setOwnMessageIds] = useState<Set<string>>(() => new Set());
+  const [participantId, setParticipantId] = useState<string>();
   const [draft, setDraft] = useState('');
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [speechNotice, setSpeechNotice] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const shouldScrollToEndRef = useRef(true);
 
   const loadMessages = async (
     roomKey: string,
     before?: CommunityMessageCursor,
     appendOlder = false
   ) => {
+    if (!appendOlder) shouldScrollToEndRef.current = true;
     setLoadingMessages(true);
     setChatError(null);
     try {
       const page = await api.listCommunityMessages(roomKey, before);
+      if (!appendOlder) shouldScrollToEndRef.current = true;
       setMessages((current) => (appendOlder ? mergeMessages(current, page.messages) : page.messages));
       setNextBefore(page.nextBefore);
     } catch (error) {
@@ -80,11 +87,14 @@ export const CommunityScreen: React.FC = () => {
 
   const enter = () => {
     if (!room) return;
+    shouldScrollToEndRef.current = true;
     setMessages([]);
     setNextBefore(undefined);
     setDraft('');
-    setAboutOpen(true);
-    setHandlingOpen(true);
+    // Keep the guidance compact on entry; users can expand either section when
+    // they want the details without pushing the conversation off-screen.
+    setAboutOpen(false);
+    setHandlingOpen(false);
     setJoined(true);
     void loadMessages(room);
   };
@@ -105,7 +115,10 @@ export const CommunityScreen: React.FC = () => {
     setSending(true);
     setChatError(null);
     try {
-      const message = await api.createCommunityMessage({ roomKey: room, text });
+      const senderId = participantId ?? (await getCommunityParticipantId());
+      setParticipantId(senderId);
+      const message = await api.createCommunityMessage({ roomKey: room, text, participantId: senderId });
+      shouldScrollToEndRef.current = true;
       setMessages((current) => mergeMessages(current, [message]));
       setOwnMessageIds((ids) => new Set([...ids, message.id]));
       setDraft('');
@@ -115,6 +128,14 @@ export const CommunityScreen: React.FC = () => {
       setSending(false);
     }
   };
+
+  const guidancePassages = guidance && room
+    ? [
+        `${domain.scamType(room)}.`,
+        `${t('community.aboutScam')}. ${guidance.what}`,
+        `${t('community.howToHandle')}. ${guidance.how}`,
+      ]
+    : [];
 
   if (joined && room) {
     return (
@@ -127,7 +148,12 @@ export const CommunityScreen: React.FC = () => {
             ref={scrollRef}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
-            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
+            onContentSizeChange={() => {
+              if (shouldScrollToEndRef.current) {
+                scrollRef.current?.scrollToEnd({ animated: true });
+                shouldScrollToEndRef.current = false;
+              }
+            }}
           >
             <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
             <Card>
@@ -139,9 +165,17 @@ export const CommunityScreen: React.FC = () => {
 
             {guidance ? (
               <Card style={styles.guidanceCard}>
+                <View style={styles.guidanceListenRow}>
+                  <Muted style={styles.guidanceListenLabel}>{domain.scamType(room)}</Muted>
+                  <SpeakButton passages={guidancePassages} onUnavailable={setSpeechNotice} />
+                </View>
+                {speechNotice ? <Muted style={styles.notice}>{speechNotice}</Muted> : null}
                 <Pressable
                   style={styles.guidanceSectionHeader}
-                  onPress={() => setAboutOpen((open) => !open)}
+                  onPress={() => {
+                    shouldScrollToEndRef.current = false;
+                    setAboutOpen((open) => !open);
+                  }}
                   accessibilityRole="button"
                   accessibilityState={{ expanded: aboutOpen }}
                 >
@@ -152,7 +186,10 @@ export const CommunityScreen: React.FC = () => {
 
                 <Pressable
                   style={styles.guidanceSectionHeader}
-                  onPress={() => setHandlingOpen((open) => !open)}
+                  onPress={() => {
+                    shouldScrollToEndRef.current = false;
+                    setHandlingOpen((open) => !open);
+                  }}
                   accessibilityRole="button"
                   accessibilityState={{ expanded: handlingOpen }}
                 >
@@ -172,13 +209,16 @@ export const CommunityScreen: React.FC = () => {
 
             {messages.map((message) => {
               const self = ownMessageIds.has(message.id);
+              const participant = message.participantKey
+                ? t('community.participant').replace('{id}', message.participantKey)
+                : t('community.member');
               return (
                 <View
                   key={message.id}
                   style={[styles.bubble, self ? styles.bubbleSelf : styles.bubbleOther]}
                 >
                   <Muted style={{ color: self ? colors.white : colors.primary }}>
-                    {self ? t('community.you') : t('community.member')}
+                    {self ? t('community.you') : participant}
                   </Muted>
                   <Body style={self ? { color: colors.white } : undefined}>{message.text}</Body>
                 </View>
@@ -214,13 +254,20 @@ export const CommunityScreen: React.FC = () => {
           <WheelPicker
             options={allTypes.map((value) => ({ value, label: domain.scamType(value) }))}
             value={room}
-            onChange={setRoom}
+            onChange={(value) => {
+              setSpeechNotice(null);
+              setRoom(value);
+            }}
           />
         </Card>
 
         {guidance ? (
           <Card>
-            <SubHeading>{domain.scamType(room!)}</SubHeading>
+            <View style={styles.guidanceListenRow}>
+              <SubHeading>{domain.scamType(room!)}</SubHeading>
+              <SpeakButton passages={guidancePassages} onUnavailable={setSpeechNotice} />
+            </View>
+            {speechNotice ? <Muted style={styles.notice}>{speechNotice}</Muted> : null}
             <Muted>{t('community.aboutScam')}</Muted>
             <Body>{guidance.what}</Body>
             <View style={styles.guidanceGap}>
@@ -291,6 +338,13 @@ const styles = StyleSheet.create({
   bubbleSelf: { backgroundColor: colors.primary, alignSelf: 'flex-end' },
   guidanceGap: { marginTop: spacing.sm, gap: spacing.xs },
   guidanceCard: { gap: spacing.sm },
+  guidanceListenRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  guidanceListenLabel: { color: colors.text, fontWeight: '800', flex: 1 },
   guidanceSectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -301,6 +355,7 @@ const styles = StyleSheet.create({
   guidanceTitle: { color: colors.primary, fontWeight: '800' },
   guidanceChevron: { color: colors.primary, fontSize: 22, lineHeight: 22 },
   guidanceBody: { color: colors.text, fontSize: font.body, lineHeight: 21 },
+  notice: { color: colors.medium },
   // Darker amber keeps the safety notice distinct while meeting readable
   // contrast on the light card surface.
   publicNotice: { color: '#7A4D00', fontWeight: '700' },

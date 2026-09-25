@@ -203,6 +203,7 @@ export interface CommunityMessage {
   roomKey: string;
   text: string;
   createdAt: string;
+  participantKey?: string;
 }
 
 export interface CommunityMessageCursor {
@@ -218,6 +219,7 @@ export interface CommunityMessagePage {
 export interface NewCommunityMessageInput {
   roomKey: string;
   text: string;
+  participantId?: string;
 }
 
 /**

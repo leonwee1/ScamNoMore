@@ -75,6 +75,23 @@ describe('SQLite community messages', () => {
     expect(older.messages).toHaveLength(5);
     expect(new Set([...first.messages, ...older.messages].map((message) => message.id)).size).toBe(55);
   });
+
+  it('keeps a stable anonymous label for the same participant in one room', () => {
+    const first = createCommunityMessage({ ...input, participantId: 'device-token-a' });
+    const second = createCommunityMessage({
+      ...input,
+      text: 'I checked with the bank directly.',
+      participantId: 'device-token-a',
+    });
+    const other = createCommunityMessage({
+      ...input,
+      text: 'I received a similar message too.',
+      participantId: 'device-token-b',
+    });
+
+    expect(first.participantKey).toBe(second.participantKey);
+    expect(other.participantKey).not.toBe(first.participantKey);
+  });
 });
 
 describe('community handlers', () => {

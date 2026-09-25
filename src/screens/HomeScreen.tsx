@@ -64,9 +64,12 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           <Body style={{ ...cautionTextStyle, color: colors.text }}>{t('home.caution')}</Body>
         </View>
 
-        <SubHeading>{t('home.prompt')}</SubHeading>
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHeadingRow}>
+            <SubHeading style={styles.sectionHeading}>{t('home.prompt')}</SubHeading>
+          </View>
 
-        <View style={styles.actionPanel}>
+          <View style={styles.actionPanel}>
           <Pressable
             style={styles.actionRow}
             onPress={() => toggleGroup('text')}
@@ -119,11 +122,12 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             </View>
             <Text style={[styles.actionChevron, { fontSize: scaled(22, scale) }]}>›</Text>
           </Pressable>
+          </View>
         </View>
 
-        <View style={styles.latestSection}>
-          <View style={styles.latestHeader}>
-            <SubHeading>{t('home.latestVerified')}</SubHeading>
+        <View style={styles.sectionBlock}>
+          <View style={styles.sectionHeadingRow}>
+            <SubHeading style={styles.sectionHeading}>{t('home.latestVerified')}</SubHeading>
             <Pressable
               onPress={() => navigation.navigate('SearchTab')}
               accessibilityRole="button"
@@ -140,8 +144,9 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <Text style={[styles.caseType, { fontSize: scaled(font.small, scale), lineHeight: scaled(18, scale) }]} numberOfLines={2}>
                   {domain.scamType(record.scamType)}
                 </Text>
-                <Muted numberOfLines={1}>◷ {record.dateReported}</Muted>
-                <Muted numberOfLines={1}>⌖ {domain.town(record.town)} · {record.specificPlace}</Muted>
+                <Muted numberOfLines={1}>
+                  ◷ {record.dateReported} · {domain.town(record.town)} · {record.specificPlace}
+                </Muted>
                 <View style={styles.caseFooter}>
                   <Muted numberOfLines={1} style={styles.caseKeywords}>
                     {domain.keywords(record.keywords).join(', ')}
@@ -240,13 +245,14 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   quickButton: { flex: 1, minHeight: 40, paddingHorizontal: spacing.sm },
-  latestSection: { gap: spacing.sm },
-  latestHeader: {
+  sectionBlock: { gap: spacing.sm },
+  sectionHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
+  sectionHeading: { lineHeight: 24 },
   viewAll: { color: colors.primary, fontSize: font.small, fontWeight: '800' },
   latestGrid: { flexDirection: 'column', gap: spacing.sm },
   latestCase: {

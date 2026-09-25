@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
+import { Modal, StyleSheet, Text, View } from 'react-native';
 import { useI18n } from '../i18n';
 import { colors, radius, spacing } from '../theme';
 import { Body, Button, SubHeading } from './ui';
@@ -59,12 +59,30 @@ export function useMediaPrivacyConsent(kind: MediaKind): {
       <View style={styles.backdrop}>
         <View style={styles.dialog} accessibilityRole="alert">
           <SubHeading>{t('analyze.privacy.title')}</SubHeading>
-          <Body>{t('analyze.privacy.body')}</Body>
-          <Body style={styles.warning}>
-            {kind === 'image'
-              ? t('analyze.privacy.imageWarning')
-              : t('analyze.privacy.audioVideoWarning')}
-          </Body>
+          <Body style={styles.beforeContinue}>{t('analyze.privacy.beforeContinue')}</Body>
+          <View style={styles.bulletList}>
+            <Body style={styles.bullet}>• {t('analyze.privacy.bodyPoint1')}</Body>
+            <Body style={styles.bullet}>• {t('analyze.privacy.bodyPoint2')}</Body>
+            <Body style={styles.bullet}>• {t('analyze.privacy.bodyPoint3')}</Body>
+          </View>
+          <View style={styles.warning}>
+            <View style={styles.warningTitleRow}>
+              <View style={styles.warningIcon}>
+                <Text style={styles.warningIconText}>!</Text>
+              </View>
+              <Body style={styles.warningTitle}>{t('analyze.privacy.warningTitle')}</Body>
+            </View>
+            <Body style={styles.warningText}>
+              • {kind === 'image'
+                ? t('analyze.privacy.imageWarningPoint1')
+                : t('analyze.privacy.audioVideoWarningPoint1')}
+            </Body>
+            <Body style={styles.warningText}>
+              • {kind === 'image'
+                ? t('analyze.privacy.imageWarningPoint2')
+                : t('analyze.privacy.audioVideoWarningPoint2')}
+            </Body>
+          </View>
           <View style={styles.actions}>
             <Button title={t('common.cancel')} onPress={cancel} variant="secondary" style={styles.action} />
             <Button title={t('analyze.privacy.continue')} onPress={accept} style={styles.action} />
@@ -89,7 +107,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
-    padding: spacing.lg,
+    padding: spacing.md,
     gap: spacing.md,
     shadowColor: '#000000',
     shadowOpacity: 0.3,
@@ -97,14 +115,35 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
   },
+  beforeContinue: { color: colors.text, fontWeight: '800' },
+  bulletList: { gap: spacing.xs },
+  bullet: { color: '#345963' },
   warning: {
-    color: colors.medium,
-    fontWeight: '700',
-    backgroundColor: '#3B2A12',
+    backgroundColor: '#FFF1E8',
     borderRadius: radius.sm,
     borderWidth: 1,
-    borderColor: colors.medium,
+    borderColor: '#E57C43',
     padding: spacing.md,
+    gap: spacing.xs,
+  },
+  warningTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  warningIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#E57C43',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  warningIconText: { color: colors.white, fontSize: 21, fontWeight: '800' },
+  warningTitle: { color: '#9A4B22', fontWeight: '800', flex: 1 },
+  warningText: {
+    color: '#6E3A25',
+    paddingLeft: 42,
   },
   actions: { gap: spacing.sm },
   action: { width: '100%' },

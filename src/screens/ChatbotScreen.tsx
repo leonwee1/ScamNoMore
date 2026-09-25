@@ -59,8 +59,8 @@ export const ChatbotScreen: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang]);
 
-  const send = async () => {
-    const message = draft.trim();
+  const send = async (suggestedMessage?: string) => {
+    const message = (suggestedMessage ?? draft).trim();
     if (!message || loading) return;
     const next: ChatTurn[] = [...turns, { role: 'user', content: message }];
     setTurns(next);
@@ -158,6 +158,31 @@ export const ChatbotScreen: React.FC = () => {
               </Body>
             </View>
           ))}
+          {turns.length === 1 && !loading ? (
+            <View style={styles.promptSection}>
+              <Muted>{t('chatbot.commonQuestions')}</Muted>
+              <View style={styles.promptList}>
+                {[
+                  'chatbot.promptScam',
+                  'chatbot.promptMessage',
+                  'chatbot.promptPaid',
+                  'chatbot.promptReport',
+                ].map((key) => (
+                  <Pressable
+                    key={key}
+                    style={styles.promptBubble}
+                    onPress={() => void send(t(key as Parameters<typeof t>[0]))}
+                    accessibilityRole="button"
+                    accessibilityLabel={t(key as Parameters<typeof t>[0])}
+                  >
+                    <Text style={[styles.promptText, { fontSize: scaled(font.small, scale) }]}>
+                      {t(key as Parameters<typeof t>[0])}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
           {loading ? <Muted>{t('chatbot.typing')}</Muted> : null}
         </ScrollView>
 
@@ -185,7 +210,7 @@ export const ChatbotScreen: React.FC = () => {
             onChangeText={setDraft}
             placeholder={t('chatbot.placeholder')}
             placeholderTextColor={colors.textMuted}
-            onSubmitEditing={send}
+            onSubmitEditing={() => void send()}
             returnKeyType="send"
             editable={!transcribing}
             multiline
@@ -214,6 +239,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  promptSection: { gap: spacing.xs, paddingTop: spacing.xs },
+  promptList: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  promptBubble: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceAlt,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  promptText: { color: colors.primary, fontWeight: '700' },
   status: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
   statusError: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs, color: colors.high },
   inputRow: {

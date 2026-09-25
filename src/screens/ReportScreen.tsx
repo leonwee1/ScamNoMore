@@ -129,7 +129,7 @@ export const ReportScreen: React.FC = () => {
         {submitted ? (
           <View style={styles.successBox}>
             <Body style={styles.successTitle}>🙏 {t('report.thankYou')}</Body>
-            <Muted>{t('report.submittedAgain')}</Muted>
+            <Muted style={styles.successNote}>{t('report.submittedAgain')}</Muted>
           </View>
         ) : null}
 
@@ -232,17 +232,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
   },
   textarea: { minHeight: 130, textAlignVertical: 'top' },
-  // Green-tinted so the acknowledgement reads as success at a glance, distinct
-  // from the neutral cards of the form below it.
+  // Light green keeps the acknowledgement distinct while preserving readable
+  // contrast for both the confirmation and the follow-up note.
   successBox: {
-    backgroundColor: '#12372A',
+    backgroundColor: '#E8F7EF',
     borderColor: colors.safe,
     borderWidth: 1,
     borderRadius: radius.md,
     padding: spacing.md,
     gap: spacing.sm,
   },
-  successTitle: { color: colors.safe, fontWeight: '800' },
+  successTitle: { color: '#176B4D', fontWeight: '800' },
+  successNote: { color: '#345D50' },
   error: { color: colors.high },
   labelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });
