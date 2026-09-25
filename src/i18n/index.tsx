@@ -198,7 +198,7 @@ const en = {
   'report.submittedAgain': 'You can file another report below.',
 
   'community.title': 'Community',
-  'community.pickRoom': 'Please select a chat room to join.',
+  'community.pickRoom': 'Select a chat room to join.',
   'community.aboutScam': 'About this scam',
   'community.howToHandle': 'How to handle it',
   'community.enter': 'Enter chat room',

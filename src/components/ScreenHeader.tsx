@@ -23,14 +23,26 @@ export const ScreenHeader: React.FC<{
   showControls?: boolean;
   /** Optional label override used by the Home shortcut. */
   chatLabel?: string;
-}> = ({ title, titleIcon, showControls = false, chatLabel }) => {
+  /** Show a back action inside this row for stack sub-pages. */
+  showBack?: boolean;
+}> = ({ title, titleIcon, showControls = false, chatLabel, showBack = false }) => {
   const { lang, setLang, t } = useI18n();
   const { scale } = useTextScale();
   const navigation = useNavigation<any>();
 
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, !showControls && styles.wrapWithDivider]}>
       <View style={styles.titleRow}>
+        {showBack ? (
+          <Pressable
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Text style={styles.backText}>‹</Text>
+          </Pressable>
+        ) : null}
         <View style={styles.brandTitle}>
           {titleIcon}
           {title ? (
@@ -80,7 +92,19 @@ export const ScreenHeader: React.FC<{
 };
 
 const styles = StyleSheet.create({
-  wrap: { marginBottom: spacing.md, overflow: 'visible' },
+  // This component is the first child of each page ScrollView and is marked
+  // sticky there, so the brand/chat row (and Home utility row) stays readable
+  // while the page content scrolls underneath it.
+  wrap: { marginBottom: spacing.md, overflow: 'visible', backgroundColor: colors.bg, zIndex: 1 },
+  // Non-Home pages do not have the utility strip, so a light full-width rule
+  // makes the fixed brand/chat row feel separate from the scrolling content.
+  wrapWithDivider: {
+    marginHorizontal: -spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -100,6 +124,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
+  backBtn: {
+    width: 30,
+    height: 44,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  backText: { color: colors.text, fontSize: 36, lineHeight: 38, fontWeight: '400' },
   brandTitle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: 0 },
   // flexShrink lets a long translated title wrap/ellipsise instead of pushing
   // the logo off screen.

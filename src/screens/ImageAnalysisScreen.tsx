@@ -62,9 +62,9 @@ export const ImageAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   // 'bottom' only: the native stack header already clears the status bar, so
   // asking for the top inset here would add a second copy of it.
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" showBack />
 
         <Card>
           {/* The group name now lives in the stack header, so repeating it here

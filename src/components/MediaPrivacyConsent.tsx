@@ -143,7 +143,9 @@ const styles = StyleSheet.create({
   warningTitle: { color: '#9A4B22', fontWeight: '800', flex: 1 },
   warningText: {
     color: '#6E3A25',
-    paddingLeft: 42,
+    // Keep the warning bullets aligned with the left edge of the exclamation
+    // icon, rather than indenting them past the icon and title.
+    paddingLeft: 0,
   },
   actions: { gap: spacing.sm },
   action: { width: '100%' },

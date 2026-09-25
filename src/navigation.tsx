@@ -109,30 +109,22 @@ export const RootNavigator: React.FC = () => {
       }}
     >
       <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-      {/* The native title follows the exact Home button that opened the flow;
-          the screen itself adds the shared ScamNoMore + Ask Hans row. */}
+      {/* Analysis flows own their back action inside the shared first row, so
+          the native stack header does not appear above ScamNoMore. */}
       <Stack.Screen
         name="ImageAnalysis"
         component={ImageAnalysisScreen}
-        options={({ route }) => ({
-          title: (route.params as { mode?: string } | undefined)?.mode === 'camera'
-            ? t('home.takePicture')
-            : t('home.uploadImage'),
-        })}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="VoiceAnalysis"
         component={VoiceAnalysisScreen}
-        options={({ route }) => ({
-          title: (route.params as { mode?: string } | undefined)?.mode === 'record'
-            ? t('home.sayWhat')
-            : t('home.uploadAudio'),
-        })}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="VideoAnalysis"
         component={VideoAnalysisScreen}
-        options={{ title: t('home.uploadVideo') }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="Chatbot"

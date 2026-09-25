@@ -44,6 +44,7 @@ function mergeMessages(
 export const CommunityScreen: React.FC = () => {
   const { t } = useI18n();
   const domain = useDomain();
+  const { scale } = useTextScale();
   const allTypes = useMemo(() => scamTypes(), []);
   const [room, setRoom] = useState<string | undefined>(() => {
     const types = scamTypes();
@@ -148,6 +149,7 @@ export const CommunityScreen: React.FC = () => {
             ref={scrollRef}
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled"
+            stickyHeaderIndices={[0]}
             onContentSizeChange={() => {
               if (shouldScrollToEndRef.current) {
                 scrollRef.current?.scrollToEnd({ animated: true });
@@ -234,11 +236,11 @@ export const CommunityScreen: React.FC = () => {
               />
             ) : null}
 
-            <Button title={t('community.exit')} variant="secondary" onPress={exit} />
           </ScrollView>
 
           <View style={styles.inputBar}>
             <ChatInput value={draft} onChange={setDraft} onSend={send} sending={sending} />
+            <Button title={t('community.exit')} variant="secondary" onPress={exit} />
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -247,10 +249,10 @@ export const CommunityScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" stickyHeaderIndices={[0]}>
         <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
         <Card>
-          <SubHeading>{t('community.pickRoom')}</SubHeading>
+          <SubHeading style={{ fontSize: scaled(18, scale) }}>{t('community.pickRoom')}</SubHeading>
           <WheelPicker
             options={allTypes.map((value) => ({ value, label: domain.scamType(value) }))}
             value={room}
@@ -264,7 +266,11 @@ export const CommunityScreen: React.FC = () => {
         {guidance ? (
           <Card>
             <View style={styles.guidanceListenRow}>
-              <SubHeading>{domain.scamType(room!)}</SubHeading>
+              <SubHeading
+                style={room === 'Government Officials Impersonation Scam' ? styles.governmentRoomTitle : undefined}
+              >
+                {domain.scamType(room!)}
+              </SubHeading>
               <SpeakButton passages={guidancePassages} onUnavailable={setSpeechNotice} />
             </View>
             {speechNotice ? <Muted style={styles.notice}>{speechNotice}</Muted> : null}
@@ -317,6 +323,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
+    gap: spacing.md,
   },
   bubble: {
     borderRadius: radius.lg,
@@ -344,6 +351,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
+  governmentRoomTitle: { flex: 1, minWidth: 0 },
   guidanceListenLabel: { color: colors.text, fontWeight: '800', flex: 1 },
   guidanceSectionHeader: {
     flexDirection: 'row',

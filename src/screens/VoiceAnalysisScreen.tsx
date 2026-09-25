@@ -137,9 +137,9 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   // 'bottom' only: the native stack header already clears the status bar, so
   // asking for the top inset here would add a second copy of it.
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
+    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
+        <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" showBack />
 
         <Card>
           {/* Only meaningful when the user is choosing an existing file. When

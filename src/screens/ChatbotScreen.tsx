@@ -160,7 +160,6 @@ export const ChatbotScreen: React.FC = () => {
           ))}
           {turns.length === 1 && !loading ? (
             <View style={styles.promptSection}>
-              <Muted>{t('chatbot.commonQuestions')}</Muted>
               <View style={styles.promptList}>
                 {[
                   'chatbot.promptScam',

@@ -19,7 +19,7 @@ import { computeStats, scamStore, scamTypes, searchScams, SearchFilters, towns }
 import { ScamRecord } from '../data/types';
 import { useI18n } from '../i18n';
 import { useDomain } from '../i18n/useDomain';
-import { deviceToday, monthsAgo } from '../services/dates';
+import { daysAgo, deviceToday, monthsAgo } from '../services/dates';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
 
@@ -90,7 +90,10 @@ export const SearchScreen: React.FC = () => {
     setAppliedFilters({
       // Relative period resolved against the device's own calendar.
       from: monthsAgo(months),
-      to: deviceToday(),
+      // Verified cases follow Home's latest-case rule and exclude today.
+      // Turning this filter off is the explicit way to include user reports,
+      // including reports dated today.
+      to: verifiedOnly ? daysAgo(1) : deviceToday(),
       keywords: kw,
       scamType: scamType === ANY ? undefined : scamType,
       town: town === ANY ? undefined : town,
@@ -100,7 +103,15 @@ export const SearchScreen: React.FC = () => {
   };
 
   const results = useMemo(
-    () => (appliedFilters ? searchScams(appliedFilters) : null),
+    () =>
+      appliedFilters
+        ? searchScams(appliedFilters)
+            .slice()
+            .sort(
+              (a, b) =>
+                b.dateReported.localeCompare(a.dateReported) || b.id.localeCompare(a.id)
+            )
+        : null,
     [appliedFilters, storeVersion]
   );
   const stats = useMemo(() => (results ? computeStats(results) : null), [results]);
@@ -114,7 +125,7 @@ export const SearchScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" stickyHeaderIndices={[0]}>
         <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
 
         <Card>
@@ -196,7 +207,7 @@ export const SearchScreen: React.FC = () => {
                 {visible.map((r) => (
                   <View key={r.id} style={styles.caseCard}>
                     <Text style={[styles.caseType, { fontSize: scaled(font.body, scale) }]}>{domain.scamType(r.scamType)}</Text>
-                    <Muted>
+                    <Muted numberOfLines={1}>
                       {/* specificPlace is a street address or landmark, so it is
                           deliberately left untranslated. */}
                       {r.dateReported} · {domain.town(r.town)} · {r.specificPlace}

@@ -45,7 +45,7 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} stickyHeaderIndices={[0]}>
         <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} showControls chatLabel="Ask Hans" />
         <BackendBanner />
 

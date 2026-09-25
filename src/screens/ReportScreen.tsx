@@ -123,6 +123,7 @@ export const ReportScreen: React.FC = () => {
           ref={scrollRef}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          stickyHeaderIndices={[0]}
         >
         <ScreenHeader title={t('app.name')} titleIcon={<BrandMark size={34} />} chatLabel="Ask Hans" />
 
@@ -139,69 +140,66 @@ export const ReportScreen: React.FC = () => {
 
         {submitError ? <Muted style={styles.error}>{submitError}</Muted> : null}
 
+        {/* Keep all four required fields in one visual block. The controls stay
+            separate for accessibility and validation; only their surrounding
+            card is shared to make the form read as one report. */}
         <Card>
-          <View style={styles.requiredLabelRow}>
-            <Muted style={styles.requiredLabel}>{t('report.date')}</Muted>
-            <Muted>{t('search.required')}</Muted>
-          </View>
-          {/* maxDate is today: an incident cannot be reported before it happens,
-              and blocking it in the calendar is clearer than validating after
-              the fact. */}
-          <DatePicker
-            value={date}
-            onChange={setDate}
-            maxDate={deviceToday()}
-            minDate={monthsAgo(60)}
-            accessibilityLabel={t('report.date')}
-          />
-        </Card>
-
-        {/* Dropdowns rather than chip grids: 40 towns and 14 scam types as chips
-            filled most of the screen. Both share one card to save more height.
-
-            Placed before the description so the quick structured fields come
-            first and the one open-ended field is last — the user is not left
-            writing prose and then discovering more questions below it.
-
-            The option VALUES stay canonical English, only the labels are
-            translated, so a report filed in Tamil lands in the same dataset rows
-            as an English one and remains searchable. */}
-        <Card>
-          <Dropdown
-            label={t('report.town')}
-            hint={t('search.required')}
-            value={town ?? ''}
-            options={townOptions}
-            onChange={(v) => setTown(v || undefined)}
-          />
-          <Dropdown
-            label={t('report.scamType')}
-            hint={t('search.required')}
-            value={scamType ?? ''}
-            options={typeOptions}
-            onChange={(v) => setScamType(v || undefined)}
-          />
-        </Card>
-
-        <Card>
-          <View style={styles.labelRow}>
-            <View style={styles.requiredLabelRow}>
-              <Muted style={styles.requiredLabel}>{t('report.description')}</Muted>
-              <Muted>{t('search.required')}</Muted>
+          <View style={styles.formFields}>
+            <View>
+              <View style={styles.requiredLabelRow}>
+                <Muted style={styles.requiredLabel}>{t('report.date')}</Muted>
+                <Muted>{t('search.required')}</Muted>
+              </View>
+              {/* maxDate is today: an incident cannot be reported before it happens,
+                  and blocking it in the calendar is clearer than validating after
+                  the fact. */}
+              <DatePicker
+                value={date}
+                onChange={setDate}
+                maxDate={deviceToday()}
+                minDate={monthsAgo(60)}
+                accessibilityLabel={t('report.date')}
+              />
             </View>
-            <Muted style={{ color: words > MAX_WORDS ? colors.high : colors.textMuted }}>
-              {Math.max(0, MAX_WORDS - words)} {t('common.wordsLeft')}
-            </Muted>
+
+            {/* Dropdowns rather than chip grids: 40 towns and 14 scam types as
+                chips filled most of the screen. The option VALUES stay canonical
+                English, only the labels are translated, so a report filed in
+                Tamil lands in the same dataset rows as an English one. */}
+            <Dropdown
+              label={t('report.town')}
+              hint={t('search.required')}
+              value={town ?? ''}
+              options={townOptions}
+              onChange={(v) => setTown(v || undefined)}
+            />
+            <Dropdown
+              label={t('report.scamType')}
+              hint={t('search.required')}
+              value={scamType ?? ''}
+              options={typeOptions}
+              onChange={(v) => setScamType(v || undefined)}
+            />
+
+            <View style={styles.labelRow}>
+              <View style={styles.requiredLabelRow}>
+                <Muted style={styles.requiredLabel}>{t('report.description')}</Muted>
+                <Muted>{t('search.required')}</Muted>
+              </View>
+              <Muted style={{ color: words > MAX_WORDS ? colors.high : colors.textMuted }}>
+                {Math.max(0, MAX_WORDS - words)} {t('common.wordsLeft')}
+              </Muted>
+            </View>
+            <TextInput
+              style={[styles.input, styles.textarea, { fontSize: scaled(font.body, scale), lineHeight: scaled(21, scale) }]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder={t('report.descriptionPlaceholder')}
+              placeholderTextColor={colors.textMuted}
+              multiline
+              onFocus={() => requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }))}
+            />
           </View>
-          <TextInput
-            style={[styles.input, styles.textarea, { fontSize: scaled(font.body, scale), lineHeight: scaled(21, scale) }]}
-            value={description}
-            onChangeText={setDescription}
-            placeholder={t('report.descriptionPlaceholder')}
-            placeholderTextColor={colors.textMuted}
-            multiline
-            onFocus={() => requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }))}
-          />
         </Card>
 
         <Button
@@ -221,6 +219,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   requiredLabelRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+  formFields: { gap: spacing.md },
   requiredLabel: { color: colors.text, fontWeight: '800' },
   input: {
     borderWidth: 1,
