@@ -1,6 +1,7 @@
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { scamStore } from './src/data/scamStore';
 import { I18nProvider } from './src/i18n';
@@ -54,13 +55,38 @@ export default function App() {
     <SafeAreaProvider>
       <I18nProvider>
         <TextScaleProvider>
-          <NavigationContainer theme={navTheme}>
-            <StatusBar style="dark" />
-            <ReportsHydrator />
-            <RootNavigator />
-          </NavigationContainer>
+          <View style={Platform.OS === 'web' ? styles.webPhoneFrame : styles.nativeFrame}>
+            <NavigationContainer theme={navTheme}>
+              <StatusBar style="dark" />
+              <ReportsHydrator />
+              <RootNavigator />
+            </NavigationContainer>
+          </View>
         </TextScaleProvider>
       </I18nProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  nativeFrame: { flex: 1 },
+  // The web preview is intentionally phone-shaped without affecting native
+  // builds. A browser remains rectangular around it, but the app itself has a
+  // mobile-width canvas, handset-like corners, and a light bezel/shadow.
+  webPhoneFrame: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 390,
+    alignSelf: 'center',
+    overflow: 'hidden',
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: '#C9D8D8',
+    backgroundColor: colors.bg,
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6,
+  },
+});

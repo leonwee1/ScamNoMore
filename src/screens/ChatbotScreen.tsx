@@ -60,7 +60,9 @@ export const ChatbotScreen: React.FC = () => {
   }, [lang]);
 
   const send = async (suggestedMessage?: string) => {
-    const message = (suggestedMessage ?? draft).trim();
+    // Button press callbacks can receive a native/web press event. Only a
+    // string is a suggested message; otherwise use the text currently drafted.
+    const message = (typeof suggestedMessage === 'string' ? suggestedMessage : draft).trim();
     if (!message || loading) return;
     const next: ChatTurn[] = [...turns, { role: 'user', content: message }];
     setTurns(next);
@@ -216,7 +218,7 @@ export const ChatbotScreen: React.FC = () => {
           />
           <Button
             title={t('chatbot.send')}
-            onPress={send}
+            onPress={() => void send()}
             loading={loading}
             disabled={!draft.trim() || transcribing}
             style={{ paddingHorizontal: 18 }}
