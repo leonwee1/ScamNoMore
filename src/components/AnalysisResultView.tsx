@@ -94,7 +94,11 @@ export const AnalysisResultView: React.FC<{ result: AnalysisResult }> = ({ resul
     <Card style={styles.resultCard}>
       <View style={styles.headerRow}>
         <SubHeading>{t('analyze.result')}</SubHeading>
-        <SpeakButton passages={spokenPassages} onUnavailable={setSpeechNotice} />
+        <SpeakButton
+          passages={spokenPassages}
+          onUnavailable={setSpeechNotice}
+          voiceAction="playAnalysisAudio"
+        />
       </View>
       {speechNotice ? <Muted style={styles.notice}>{speechNotice}</Muted> : null}
       {assessed ? (

@@ -5,6 +5,7 @@ import { TextSizeSlider } from './TextSizeSlider';
 import { LANGS, useI18n } from '../i18n';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
+import { useVoiceAssistant } from './VoiceAssistantProvider';
 
 /**
  * Shared header with a Chatbot shortcut. The Home screen additionally opts into
@@ -28,6 +29,7 @@ export const ScreenHeader: React.FC<{
 }> = ({ title, titleIcon, showControls = false, chatLabel, showBack = false }) => {
   const { lang, setLang, t } = useI18n();
   const { scale } = useTextScale();
+  const voice = useVoiceAssistant();
   const navigation = useNavigation<any>();
 
   return (
@@ -87,6 +89,12 @@ export const ScreenHeader: React.FC<{
           <TextSizeSlider dark />
         </View>
       ) : null}
+
+      {voice.status === 'listening' || voice.status === 'speaking' ? (
+        <View style={styles.voiceBanner} accessibilityLiveRegion="polite">
+          <Text style={[styles.voiceBannerText, { fontSize: scaled(font.small, scale) }]}>🎙️ {voice.status === 'speaking' ? (lang === 'zh' ? 'Hans 正在说话' : lang === 'ms' ? 'Hans sedang bercakap' : lang === 'ta' ? 'Hans பேசுகிறார்' : 'Hans is speaking') : (lang === 'zh' ? '正在聆听' : lang === 'ms' ? 'Sedang mendengar' : lang === 'ta' ? 'கேட்கிறது' : 'Listening')}</Text>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -118,6 +126,15 @@ const styles = StyleSheet.create({
     flexWrap: 'nowrap',
     gap: spacing.xs,
   },
+  voiceBanner: {
+    marginHorizontal: -spacing.md,
+    marginTop: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+  },
+  voiceBannerText: { color: colors.white, fontWeight: '800' },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',

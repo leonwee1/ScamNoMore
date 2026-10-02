@@ -1,5 +1,5 @@
 import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BrandMark } from '../components/BrandMark';
@@ -15,6 +15,7 @@ import { deviceToday } from '../services/dates';
 import { api } from '../services/api';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
+import { subscribeVoiceActions, subscribeVoiceDictation } from '../services/voiceBus';
 
 const MAX_WORDS = 200;
 const wordCount = (s: string) => (s.trim() ? s.trim().split(/\s+/).length : 0);
@@ -101,6 +102,17 @@ export const ReportScreen: React.FC = () => {
       setSubmitting(false);
     }
   };
+
+  // The existing Submit incident report button is unchanged. This listener
+  // only exposes the same validation and persistence path after voice
+  // confirmation.
+  useEffect(() => subscribeVoiceActions((action) => {
+    if (action === 'submitReport') void submit();
+  }), [date, description, town, scamType, submitting]);
+
+  useEffect(() => subscribeVoiceDictation((text, target) => {
+    if (target === 'report') setDescription(text);
+  }), []);
 
   // Drop the confirmation when the user leaves the tab, so returning later shows
   // a clean form rather than a stale "thank you" for a report already filed.

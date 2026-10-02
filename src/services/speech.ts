@@ -1,5 +1,6 @@
 import { setAudioModeAsync } from 'expo-audio';
 import * as Speech from 'expo-speech';
+import { Platform } from 'react-native';
 import type { Lang } from '../i18n';
 
 /**
@@ -61,6 +62,7 @@ interface ChosenVoice {
 }
 
 let voiceCache: Speech.Voice[] | null = null;
+let speechRequestId = 0;
 
 async function voices(): Promise<Speech.Voice[]> {
   if (voiceCache) return voiceCache;
@@ -99,6 +101,13 @@ export function scoreVoice(v: Speech.Voice): number {
   if (/eloquence|espeak|pico/.test(tag)) s -= 40;
   if (/local/.test(tag)) s -= 3;
 
+  // The app's assistant is intended to use Hans' male voice.  Voice gender is
+  // not exposed consistently by browser/OS speech APIs, so prefer the gender
+  // markers and common male voice names that are available in their catalogues
+  // while avoiding voices explicitly labelled female.
+  if (/\bmale\b|\bman\b|男声|男士|ஆண்|lelaki|andrew|arthur|alex|daniel|david|fred|james|john|mark|guy|rishi|yunxi|yunjian|yunyang|kangkang/.test(tag)) s += 60;
+  if (/\bfemale\b|\bwoman\b|女声|女士|பெண்|wanita|ava|fiona|hazel|jenny|karen|moira|samantha|susan|tessa|victoria|zira|ting[- ]?ting|sin[- ]?ji|mei[- ]?jia|xiaoxiao/.test(tag)) s -= 60;
+
   return s;
 }
 
@@ -109,20 +118,27 @@ export async function chooseVoice(lang: Lang): Promise<ChosenVoice> {
   const all = await voices();
   const prefs = LOCALES[lang];
 
-  for (const locale of prefs) {
-    const matches = all.filter((v) =>
-      v.language?.toLowerCase().replace('_', '-').startsWith(locale.toLowerCase())
-    );
-    if (matches.length === 0) continue;
-
-    const best = matches.slice().sort((a, b) => scoreVoice(b) - scoreVoice(a))[0];
+  const matches = all.flatMap((voice) => {
+    const language = voice.language?.toLowerCase().replace('_', '-') ?? '';
+    const localeIndex = prefs.findIndex((locale) => language.startsWith(locale.toLowerCase()));
+    return localeIndex >= 0 ? [{ voice, localeIndex }] : [];
+  });
+  if (matches.length > 0) {
+    // Prefer a detectable male voice even when it is a slightly less-specific
+    // locale (for example en-US) than an explicitly female en-SG voice.
+    const bestMatch = matches.slice().sort((a, b) => {
+      const aScore = scoreVoice(a.voice) * 10 - a.localeIndex;
+      const bScore = scoreVoice(b.voice) * 10 - b.localeIndex;
+      return bScore - aScore;
+    })[0];
+    const best = bestMatch.voice;
     // Surfaced because which voices exist is device-specific and invisible
     // otherwise; this is the fastest way to explain a bad-sounding result.
     console.log(
       `TTS ${lang}: "${best.name ?? best.identifier}" (${best.language}, ` +
         `quality=${best.quality}, score=${scoreVoice(best)}) from ${matches.length} candidate(s)`
     );
-    return { locale, identifier: best.identifier };
+    return { locale: prefs[bestMatch.localeIndex], identifier: best.identifier };
   }
 
   // No installed voice matched. Hand back the preferred locale anyway and let
@@ -132,6 +148,10 @@ export async function chooseVoice(lang: Lang): Promise<ChosenVoice> {
 
 /** True when the device can actually speak this language. */
 export async function hasVoiceFor(lang: Lang): Promise<boolean> {
+  // Browser speech-synthesis voice lists are often empty or populated after
+  // the first utterance. Do not block playback based on that incomplete list;
+  // the browser can still select its default voice for the requested locale.
+  if (Platform.OS === 'web') return true;
   const all = await voices();
   if (all.length === 0) return true; // unknown; let it try rather than block
   const prefs = LOCALES[lang].map((l) => l.toLowerCase());
@@ -182,6 +202,79 @@ export interface SpeakHandlers {
 }
 
 /**
+ * Browser speech synthesis can emit transient pause events (and some Chrome
+ * versions leave the queue paused after a tab or microphone interruption).
+ * Use the browser API directly on web so those pauses can be recovered without
+ * Expo's adapter deleting the utterance callback as if speech had stopped.
+ */
+function speakBrowser(
+  chunks: string[],
+  locale: string,
+  identifier: string | undefined,
+  requestId: number,
+  handlers: SpeakHandlers,
+): void {
+  const root = globalThis as any;
+  const synthesis = root.speechSynthesis;
+  const Utterance = root.SpeechSynthesisUtterance;
+  if (!synthesis || !Utterance) {
+    handlers.onError?.();
+    return;
+  }
+
+  const speakNext = (index: number) => {
+    if (requestId !== speechRequestId) return;
+    const utterance = new Utterance(chunks[index]);
+    utterance.lang = locale;
+    utterance.rate = RATE;
+    utterance.pitch = PITCH;
+    utterance.volume = VOLUME;
+    const browserVoice = identifier
+      ? Array.from(synthesis.getVoices?.() ?? []).find((voice: any) => voice.voiceURI === identifier)
+      : undefined;
+    if (browserVoice) utterance.voice = browserVoice;
+
+    let settled = false;
+    let pauseRecovery: any;
+    const finish = (callback?: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (pauseRecovery) root.clearTimeout?.(pauseRecovery);
+      if (requestId === speechRequestId) callback?.();
+    };
+
+    // A short pause event is normal in Chromium when the microphone stream
+    // changes state. Resume only after it persists briefly; calling resume on
+    // a fixed interval while audio is already playing can itself produce
+    // clicks, clipped syllables, and an unclear voice.
+    utterance.onpause = () => {
+      if (pauseRecovery) root.clearTimeout?.(pauseRecovery);
+      pauseRecovery = root.setTimeout?.(() => {
+        pauseRecovery = undefined;
+        if (requestId === speechRequestId && !settled && synthesis.paused) synthesis.resume();
+      }, 250);
+    };
+    utterance.onresume = () => {
+      if (pauseRecovery) root.clearTimeout?.(pauseRecovery);
+      pauseRecovery = undefined;
+    };
+    utterance.onend = () => {
+      if (index === chunks.length - 1) finish(handlers.onDone);
+      else finish(() => speakNext(index + 1));
+    };
+    utterance.onerror = () => finish(handlers.onError);
+    try {
+      synthesis.speak(utterance);
+    } catch {
+      finish(handlers.onError);
+    }
+  };
+
+  synthesis.resume();
+  speakNext(0);
+}
+
+/**
  * Speak a list of passages in order.
  *
  * Anything already queued is cancelled first, so tapping the button twice never
@@ -192,7 +285,11 @@ export async function speak(
   lang: Lang,
   handlers: SpeakHandlers = {}
 ): Promise<void> {
-  stop();
+  const requestId = ++speechRequestId;
+  // Speech.stop() is asynchronous on the web. Wait for cancellation before
+  // queueing the next utterance so a paused/cancelled sentence cannot overlap
+  // and cut the new sentence short.
+  await cancelSpeech();
 
   const chunks = passages.flatMap((p) => toUtterances(p));
   if (chunks.length === 0) {
@@ -200,33 +297,64 @@ export async function speak(
     return;
   }
 
-  await prepareForPlayback();
+  // Browser speech synthesis owns its own output session. Calling the native
+  // audio-session helper on web adds an unnecessary asynchronous boundary and
+  // can race the first utterance while the microphone is being released.
+  if (Platform.OS !== 'web') await prepareForPlayback();
   const { locale, identifier } = await chooseVoice(lang);
+  if (requestId !== speechRequestId) return;
 
-  chunks.forEach((chunk, i) => {
-    const isLast = i === chunks.length - 1;
-    Speech.speak(chunk, {
+  if (Platform.OS === 'web') {
+    speakBrowser(chunks, locale, identifier, requestId, handlers);
+    return;
+  }
+
+  // Queueing several browser utterances in the same tick is unreliable: some
+  // browsers start the next utterance before the previous one has flushed and
+  // cut the current sentence short. Start each sentence only after the prior
+  // one reports completion instead.
+  const speakNext = (index: number) => {
+    if (requestId !== speechRequestId) return;
+    const isLast = index === chunks.length - 1;
+    Speech.speak(chunks[index], {
       language: locale,
       ...(identifier ? { voice: identifier } : {}),
       rate: RATE,
       pitch: PITCH,
       volume: VOLUME,
-      // Only the final utterance reports completion, so the UI flips back to
-      // "read aloud" when the whole result has finished rather than after the
-      // first sentence.
-      onDone: isLast ? handlers.onDone : undefined,
-      onStopped: isLast ? handlers.onDone : undefined,
-      onError: handlers.onError,
+      onDone: isLast
+        ? () => { if (requestId === speechRequestId) handlers.onDone?.(); }
+        : () => speakNext(index + 1),
+      // Do not map onStopped to onDone here. Expo's web adapter maps the
+      // browser's transient `onpause` event to `speakingStopped`; treating that
+      // pause as completion makes Hans restart recognition and interrupt the
+      // sentence that is still being spoken. Explicit stop buttons already
+      // reset their own UI state, while provider generations ignore callbacks
+      // from speech that was intentionally superseded.
+      onError: () => { if (requestId === speechRequestId) handlers.onError?.(); },
     });
-  });
+  };
+
+  speakNext(0);
 }
 
 /** Stop immediately and drop anything still queued. */
-export function stop(): void {
+async function cancelSpeech(): Promise<void> {
   // Throws on web if nothing is speaking; harmless either way.
   try {
-    Speech.stop();
+    if (Platform.OS === 'web') {
+      const synthesis = (globalThis as any).speechSynthesis;
+      synthesis?.cancel?.();
+      synthesis?.resume?.();
+    } else {
+      await Speech.stop();
+    }
   } catch {
     // no-op
   }
+}
+
+export async function stop(): Promise<void> {
+  speechRequestId += 1;
+  await cancelSpeech();
 }

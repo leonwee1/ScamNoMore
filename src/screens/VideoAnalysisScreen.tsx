@@ -12,6 +12,8 @@ import { api, MAX_MEDIA_MB } from '../services/api';
 import { pickVideo } from '../services/media';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
+import { subscribeVoiceActions } from '../services/voiceBus';
+import { useVoiceAssistant } from '../components/VoiceAssistantProvider';
 
 /**
  * Video flow, laid out to match the audio screen: pick a file, the spoken audio
@@ -24,6 +26,7 @@ import { scaled, useTextScale } from '../textScale';
  */
 export const VideoAnalysisScreen: React.FC = () => {
   const { t, lang } = useI18n();
+  const voice = useVoiceAssistant();
   const { scale } = useTextScale();
   const [uri, setUri] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
@@ -31,7 +34,7 @@ export const VideoAnalysisScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { requestConsent, resetConsent, consentDialog } = useMediaPrivacyConsent('video');
+  const { requestConsent, resetConsent, acceptFromVoice, consentDialog } = useMediaPrivacyConsent('video');
 
   /** Whisper on the video's audio track, into the editable box. */
   const transcribe = async (videoUri: string) => {
@@ -58,17 +61,20 @@ export const VideoAnalysisScreen: React.FC = () => {
   };
 
   const choose = async () => {
+    voice.pause();
     setError(null);
     setResult(null);
     setTranscript('');
     const picked = await pickVideo();
     if (!picked) {
       setError(t('analyze.noVideo'));
+      voice.resume();
       return;
     }
     resetConsent();
     setUri(picked);
     requestTranscription(picked, true);
+    voice.resume();
   };
 
   // Open the picker straight away: the user already chose "Upload video file" on
@@ -94,9 +100,22 @@ export const VideoAnalysisScreen: React.FC = () => {
   };
 
   const analyze = () => {
-    if (!transcript.trim()) return;
+    if (!transcript.trim()) return false;
     requestConsent(analyzeConfirmed);
+    return true;
   };
+
+  // Voice is an alternative path; the existing Start analyzing button still
+  // uses the same privacy-gated function.
+  useEffect(() => subscribeVoiceActions((action) => {
+    if (action === 'startAnalyzing') return analyze();
+    return false;
+  }), [transcript, requestConsent]);
+
+  useEffect(() => subscribeVoiceActions((action) => {
+    if (action === 'acceptPrivacyConsent') return acceptFromVoice();
+    return false;
+  }), [acceptFromVoice]);
 
   // 'bottom' only: the native stack header already clears the status bar, so
   // asking for the top inset here would add a second copy of it.

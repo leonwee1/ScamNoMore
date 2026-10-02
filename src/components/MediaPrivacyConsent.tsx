@@ -15,6 +15,7 @@ type MediaKind = 'image' | 'audio' | 'video';
 export function useMediaPrivacyConsent(kind: MediaKind): {
   requestConsent: (upload: DeferredUpload, force?: boolean) => void;
   resetConsent: () => void;
+  acceptFromVoice: () => boolean;
   consentDialog: React.ReactNode;
 } {
   const { t } = useI18n();
@@ -47,6 +48,12 @@ export function useMediaPrivacyConsent(kind: MediaKind): {
     setConsented(true);
     if (upload) void upload();
   }, []);
+
+  const acceptFromVoice = useCallback(() => {
+    if (!visible || !pending.current) return false;
+    accept();
+    return true;
+  }, [accept, visible]);
 
   const consentDialog = (
     <Modal
@@ -92,7 +99,7 @@ export function useMediaPrivacyConsent(kind: MediaKind): {
     </Modal>
   );
 
-  return { requestConsent, resetConsent, consentDialog };
+  return { requestConsent, resetConsent, acceptFromVoice, consentDialog };
 }
 
 const styles = StyleSheet.create({

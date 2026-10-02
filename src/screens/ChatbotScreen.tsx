@@ -9,6 +9,7 @@ import {
 import React, { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -19,10 +20,72 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Body, Button, Muted } from '../components/ui';
+import { useVoiceAssistant } from '../components/VoiceAssistantProvider';
+import { subscribeVoiceActions, subscribeVoiceDictation } from '../services/voiceBus';
 import { useI18n } from '../i18n';
 import { api, ChatTurn } from '../services/api';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
+import { voiceCopy } from '../services/voiceCommands';
+
+/**
+ * Hans may recommend an official source, but only these government/ScamShield
+ * hosts are made tappable in the chat. This prevents a model-generated or
+ * user-supplied URL from looking like a verified endorsement.
+ */
+const TRUSTED_SOURCE_HOSTS = new Set([
+  'scamshield.gov.sg',
+  'www.scamshield.gov.sg',
+  'police.gov.sg',
+  'www.police.gov.sg',
+  'eservices1.police.gov.sg',
+]);
+
+const ASSISTANT_LINK_PATTERN = /\[([^\]]+)\]\((https:\/\/[^)\s]+)\)|https:\/\/[^\s<>"')]+/gi;
+
+function isTrustedSourceUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' && TRUSTED_SOURCE_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
+/** Render approved Markdown/https links as real links on web and mobile. */
+function renderAssistantMessage(content: string): React.ReactNode {
+  const children: React.ReactNode[] = [];
+  let cursor = 0;
+
+  for (const match of content.matchAll(ASSISTANT_LINK_PATTERN)) {
+    const full = match[0];
+    const index = match.index ?? 0;
+    const rawUrl = match[2] ?? full;
+    const url = rawUrl.replace(/[.,!?;:]+$/, '');
+    if (index > cursor) children.push(content.slice(cursor, index));
+
+    if (isTrustedSourceUrl(url)) {
+      children.push(
+        <Text
+          key={`source-${index}`}
+          style={styles.sourceLink}
+          accessibilityRole="link"
+          accessibilityLabel={match[1] ?? url}
+          onPress={() => void Linking.openURL(url).catch(() => undefined)}
+        >
+          {match[1] ?? full}
+        </Text>
+      );
+    } else {
+      // Keep an unapproved URL readable but deliberately non-clickable.
+      children.push(full);
+    }
+    cursor = index + full.length;
+  }
+
+  if (cursor < content.length) children.push(content.slice(cursor));
+  return children;
+}
 
 /**
  * OpenAI-powered chatbot for scam Q&A and awareness tips.
@@ -34,6 +97,8 @@ import { scaled, useTextScale } from '../textScale';
 export const ChatbotScreen: React.FC = () => {
   const { t, lang } = useI18n();
   const { scale } = useTextScale();
+  const voice = useVoiceAssistant();
+  const voiceText = voiceCopy(lang);
   const headerHeight = useHeaderHeight();
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -89,6 +154,17 @@ export const ChatbotScreen: React.FC = () => {
     }
   };
 
+  // The generic “send message” voice command sends the current chatbot draft
+  // when Hans is on this screen. Community keeps its existing send button and
+  // its separate voice action.
+  useEffect(() => subscribeVoiceActions((action) => {
+    if (action === 'sendChatbot') void send();
+  }), [draft, loading, turns, lang]);
+
+  useEffect(() => subscribeVoiceDictation((text, target) => {
+    if (target === 'chatbot') setDraft(text);
+  }), []);
+
   /** Transcribe a finished recording into the input box for review. */
   const transcribe = async (uri: string) => {
     setTranscribing(true);
@@ -109,6 +185,8 @@ export const ChatbotScreen: React.FC = () => {
   };
 
   const toggleRecording = async () => {
+    const wasRecording = recorderState.isRecording;
+    voice.pause();
     try {
       if (recorderState.isRecording) {
         await recorder.stop();
@@ -127,6 +205,10 @@ export const ChatbotScreen: React.FC = () => {
       setNotice(null);
     } catch {
       setNotice(t('analyze.micError'));
+    } finally {
+      // The visible microphone button keeps its existing recording behavior;
+      // the global wake listener simply yields the microphone while it runs.
+      if (wasRecording) voice.resume();
     }
   };
 
@@ -141,6 +223,11 @@ export const ChatbotScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
       >
+        {voice.status === 'listening' || voice.status === 'speaking' ? (
+          <View style={styles.voiceBanner} accessibilityLiveRegion="polite">
+            <Text style={[styles.voiceBannerText, { fontSize: scaled(font.small, scale) }]}>🎙️ {voice.status === 'speaking' ? voiceText.speaking : voiceText.listening}</Text>
+          </View>
+        ) : null}
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={styles.content}
@@ -156,7 +243,7 @@ export const ChatbotScreen: React.FC = () => {
               ]}
             >
               <Body style={turn.role === 'user' ? { color: colors.white } : undefined}>
-                {turn.content}
+                {turn.role === 'assistant' ? renderAssistantMessage(turn.content) : turn.content}
               </Body>
             </View>
           ))}
@@ -251,8 +338,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   promptText: { color: colors.primary, fontWeight: '700' },
+  sourceLink: {
+    color: colors.primary,
+    textDecorationLine: 'underline',
+    fontWeight: '700',
+  },
   status: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
   statusError: { paddingHorizontal: spacing.md, paddingBottom: spacing.xs, color: colors.high },
+  voiceBanner: { alignItems: 'center', backgroundColor: colors.primary, paddingVertical: spacing.xs },
+  voiceBannerText: { color: colors.white, fontWeight: '800' },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',

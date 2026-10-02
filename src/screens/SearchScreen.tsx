@@ -22,6 +22,7 @@ import { useDomain } from '../i18n/useDomain';
 import { daysAgo, deviceToday, monthsAgo } from '../services/dates';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
+import { subscribeVoiceActions } from '../services/voiceBus';
 
 /** Sentinel for "no filter on this field". Not a real dataset value. */
 const ANY = '__any__';
@@ -80,7 +81,7 @@ export const SearchScreen: React.FC = () => {
     ...allTowns.map((v) => ({ value: v, label: domain.town(v) })),
   ];
 
-  const run = () => {
+  const runWithVerified = (verifiedOverride?: boolean) => {
     const months = PERIODS.find((p) => p.value === period)?.months ?? 6;
     const kw = keywords
       .split(',')
@@ -93,14 +94,41 @@ export const SearchScreen: React.FC = () => {
       // Verified cases follow Home's latest-case rule and exclude today.
       // Turning this filter off is the explicit way to include user reports,
       // including reports dated today.
-      to: verifiedOnly ? daysAgo(1) : deviceToday(),
+      to: (verifiedOverride ?? verifiedOnly) ? daysAgo(1) : deviceToday(),
       keywords: kw,
       scamType: scamType === ANY ? undefined : scamType,
       town: town === ANY ? undefined : town,
-      verifiedOnly,
+      verifiedOnly: verifiedOverride ?? verifiedOnly,
     });
     setPage(0);
   };
+
+  const run = () => runWithVerified();
+
+  // Voice alternatives use the same filter/query path as the visible Search
+  // cases button. The button itself and its handler remain unchanged.
+  useEffect(() => subscribeVoiceActions((action) => {
+    if (action === 'runSearch') run();
+    if (action === 'searchVerified') {
+      setVerifiedOnly(true);
+      runWithVerified(true);
+    }
+    if (action === 'searchAll') {
+      setVerifiedOnly(false);
+      runWithVerified(false);
+    }
+    if (action === 'clearSearch') {
+      setScamType(ANY);
+      setPeriod('6m');
+      setTown(ANY);
+      setKeywords('');
+      setVerifiedOnly(true);
+      setAppliedFilters(null);
+      setPage(0);
+    }
+    if (action === 'showNextResults') setPage((p) => p + 1);
+    if (action === 'showPreviousResults') setPage((p) => Math.max(0, p - 1));
+  }), [period, keywords, scamType, town, verifiedOnly]);
 
   const results = useMemo(
     () =>

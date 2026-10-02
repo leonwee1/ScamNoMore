@@ -19,6 +19,8 @@ import { api, MAX_MEDIA_MB } from '../services/api';
 import { pickAudio } from '../services/media';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
+import { subscribeVoiceActions } from '../services/voiceBus';
+import { useVoiceAssistant } from '../components/VoiceAssistantProvider';
 
 /**
  * Voice flow (wireframe): upload audio OR record ("say what happened", max 5
@@ -31,6 +33,7 @@ import { scaled, useTextScale } from '../textScale';
 export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   const { t, lang } = useI18n();
   const { scale } = useTextScale();
+  const voice = useVoiceAssistant();
   const mode: 'record' | 'upload' = route.params?.mode ?? 'record';
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -41,7 +44,7 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { requestConsent, resetConsent, consentDialog } = useMediaPrivacyConsent('audio');
+  const { requestConsent, resetConsent, acceptFromVoice, consentDialog } = useMediaPrivacyConsent('audio');
 
   const transcribe = async (uri: string, contentType?: string) => {
     setBusy(true);
@@ -73,6 +76,8 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   };
 
   const toggleRecording = async () => {
+    const wasRecording = recorderState.isRecording;
+    voice.pause();
     try {
       if (recorderState.isRecording) {
         await recorder.stop();
@@ -93,18 +98,23 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
       recorder.record();
     } catch {
       setError(t('analyze.micError'));
+    } finally {
+      if (wasRecording) voice.resume();
     }
   };
 
   const upload = async () => {
+    voice.pause();
     setError(null);
     const picked = await pickAudio();
     if (!picked) {
       setError(t('analyze.noAudio'));
+      voice.resume();
       return;
     }
     resetConsent();
     requestTranscription(picked.uri, picked.mimeType, true);
+    voice.resume();
   };
 
   // In upload mode, open the file picker straight away — the user already chose
@@ -130,9 +140,22 @@ export const VoiceAnalysisScreen: React.FC<{ route: any }> = ({ route }) => {
   };
 
   const analyze = () => {
-    if (!transcript.trim()) return;
+    if (!transcript.trim()) return false;
     requestConsent(analyzeConfirmed);
+    return true;
   };
+
+  // Keep the visible Start analyzing button unchanged while allowing a
+  // confirmed voice command to invoke the same privacy-gated action.
+  useEffect(() => subscribeVoiceActions((action) => {
+    if (action === 'startAnalyzing') return analyze();
+    return false;
+  }), [transcript, requestConsent]);
+
+  useEffect(() => subscribeVoiceActions((action) => {
+    if (action === 'acceptPrivacyConsent') return acceptFromVoice();
+    return false;
+  }), [acceptFromVoice]);
 
   // 'bottom' only: the native stack header already clears the status bar, so
   // asking for the top inset here would add a second copy of it.

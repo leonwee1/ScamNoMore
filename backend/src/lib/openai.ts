@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { WHISPER_MAX_BYTES } from './audio';
+import { toSimplifiedChinese, toSimplifiedChineseList } from './chinese';
 import { parseAnalysisJson } from './parse';
 import {
   ANALYSIS_SYSTEM_PROMPT,
@@ -117,13 +118,16 @@ function emptyCompletionError(res: OpenAI.Chat.Completions.ChatCompletion, what:
   );
 }
 
-function toResult(raw: string, signals: AnalysisSignals): AnalysisResult {
+function toResult(raw: string, signals: AnalysisSignals, language?: string): AnalysisResult {
   const parsed = parseAnalysisJson(raw);
+  const simplify = normalizeLanguage(language) === 'zh'
+    ? toSimplifiedChinese
+    : (value: string) => value;
   if (parsed.assessmentStatus === 'unable_to_assess') {
     return {
       assessmentStatus: 'unable_to_assess',
-      reasons: parsed.reasons,
-      advice: parsed.advice,
+      reasons: parsed.reasons.map(simplify),
+      advice: simplify(parsed.advice),
       detectedText: signals.transcript?.trim() || signals.text?.trim() || undefined,
       signals: { ...signals, unableToAssessReason: parsed.reason },
     };
@@ -133,8 +137,8 @@ function toResult(raw: string, signals: AnalysisSignals): AnalysisResult {
     probability: parsed.probability,
     riskLevel: riskFromProbability(parsed.probability),
     scamType: parsed.scamType,
-    reasons: parsed.reasons,
-    advice: parsed.advice,
+    reasons: parsed.reasons.map(simplify),
+    advice: simplify(parsed.advice),
     detectedText: signals.transcript?.trim() || signals.text?.trim() || undefined,
     signals,
   };
@@ -193,7 +197,7 @@ export async function analyzeImage(
     );
     throw emptyCompletionError(res, 'image');
   }
-  return toResult(raw, signals);
+  return toResult(raw, signals, language);
 }
 
 /**
@@ -229,6 +233,10 @@ export async function transcribeMedia(
     // which then comes back as Malay text. Omitted (auto-detect) only when we
     // were given no usable code.
     ...(lang ? { language: lang } : {}),
+    // Whisper has no separate writing-system parameter. This prompt nudges
+    // Chinese decoding toward Simplified output; OpenCC below remains the
+    // authoritative final normalization step.
+    ...(lang === 'zh' ? { prompt: '请使用简体中文字符输出转写文字。' } : {}),
     // Greedy decoding. Whisper is prone to inventing plausible-sounding filler
     // over silence or background noise, and a non-zero temperature makes that
     // worse.
@@ -246,7 +254,7 @@ export async function transcribeMedia(
     console.warn(`Discarded likely hallucinated transcript (${verdict.reason ?? 'unknown signal'})`);
     return '';
   }
-  return text;
+  return normalizeLanguage(language) === 'zh' ? toSimplifiedChinese(text) : text;
 }
 
 /** Subset of Whisper's verbose_json response that we rely on. */
@@ -414,13 +422,13 @@ export async function analyzeTextEvidence(
       });
       const retryRaw = retry.choices[0]?.message?.content;
       if (retryRaw && parseAnalysisJson(retryRaw).assessmentStatus === 'assessed') {
-        return toResult(retryRaw, signals);
+        return toResult(retryRaw, signals, language);
       }
     } catch {
       // Keep the original honest scoreless result if the corrective pass fails.
     }
   }
-  return toResult(raw, signals);
+  return toResult(raw, signals, language);
 }
 
 /** Result for a video whose audio track contained no speech. */
@@ -495,7 +503,8 @@ export async function translateTexts(texts: string[], language?: string): Promis
   }
 
   // An empty translation would blank a reason; keep the original for those.
-  return out.map((s, i) => (s.trim() ? s : texts[i]));
+  const translated = out.map((s, i) => (s.trim() ? s : texts[i]));
+  return code === 'zh' ? toSimplifiedChineseList(translated) : translated;
 }
 
 export interface ChatTurn {
@@ -539,5 +548,5 @@ export async function chat(
 
   const reply = res.choices[0]?.message?.content?.trim();
   if (!reply) throw new Error('OpenAI returned an empty chat response');
-  return reply;
+  return normalizeLanguage(language) === 'zh' ? toSimplifiedChinese(reply) : reply;
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -23,6 +23,7 @@ import { api, CommunityMessage, CommunityMessageCursor } from '../services/api';
 import { getCommunityParticipantId } from '../services/communityIdentity';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
+import { subscribeVoiceActions, subscribeVoiceDictation } from '../services/voiceBus';
 
 /** Keep a server-confirmed row exactly once when a refresh races a send. */
 function mergeMessages(
@@ -110,6 +111,41 @@ export const CommunityScreen: React.FC = () => {
     setChatError(null);
   };
 
+  const guidancePassages = guidance && room
+    ? [
+        `${domain.scamType(room)}.`,
+        `${t('community.aboutScam')}. ${guidance.what}`,
+        `${t('community.howToHandle')}. ${guidance.how}`,
+      ]
+    : [];
+
+  // Voice commands reuse the same enter/send/exit functions as the visible
+  // buttons. No existing control is removed or changed.
+  useEffect(() => subscribeVoiceActions((action) => {
+    if (action === 'enterCommunity' && !joined) enter();
+    if (action === 'sendCommunity' && joined) void send();
+    if (action === 'exitCommunity' && joined) exit();
+    if (joined && action === 'toggleAboutScam') {
+      shouldScrollToEndRef.current = false;
+      setAboutOpen((open) => !open);
+    }
+    if (joined && action === 'toggleHowToHandle') {
+      shouldScrollToEndRef.current = false;
+      setHandlingOpen((open) => !open);
+    }
+    if (joined && action === 'showOlderMessages' && nextBefore && room) void loadMessages(room, nextBefore, true);
+    if (!joined && (action === 'nextCommunityRoom' || action === 'previousCommunityRoom')) {
+      const current = Math.max(0, allTypes.indexOf(room ?? allTypes[0]));
+      const delta = action === 'nextCommunityRoom' ? 1 : -1;
+      const next = allTypes[(current + delta + allTypes.length) % allTypes.length];
+      if (next) setRoom(next);
+    }
+  }), [joined, room, draft, sending, nextBefore, guidancePassages, allTypes]);
+
+  useEffect(() => subscribeVoiceDictation((text, target) => {
+    if (target === 'community') setDraft(text);
+  }), []);
+
   const send = async () => {
     if (!room || !draft.trim() || sending) return;
     const text = draft.trim();
@@ -129,14 +165,6 @@ export const CommunityScreen: React.FC = () => {
       setSending(false);
     }
   };
-
-  const guidancePassages = guidance && room
-    ? [
-        `${domain.scamType(room)}.`,
-        `${t('community.aboutScam')}. ${guidance.what}`,
-        `${t('community.howToHandle')}. ${guidance.how}`,
-      ]
-    : [];
 
   if (joined && room) {
     return (
@@ -169,7 +197,11 @@ export const CommunityScreen: React.FC = () => {
               <Card style={styles.guidanceCard}>
                 <View style={styles.guidanceListenRow}>
                   <Muted style={styles.guidanceListenLabel}>{domain.scamType(room)}</Muted>
-                  <SpeakButton passages={guidancePassages} onUnavailable={setSpeechNotice} />
+                  <SpeakButton
+                    passages={guidancePassages}
+                    onUnavailable={setSpeechNotice}
+                    voiceAction="readCommunityGuidance"
+                  />
                 </View>
                 {speechNotice ? <Muted style={styles.notice}>{speechNotice}</Muted> : null}
                 <Pressable
@@ -271,7 +303,11 @@ export const CommunityScreen: React.FC = () => {
               >
                 {domain.scamType(room!)}
               </SubHeading>
-              <SpeakButton passages={guidancePassages} onUnavailable={setSpeechNotice} />
+              <SpeakButton
+                passages={guidancePassages}
+                onUnavailable={setSpeechNotice}
+                voiceAction="readCommunityGuidance"
+              />
             </View>
             {speechNotice ? <Muted style={styles.notice}>{speechNotice}</Muted> : null}
             <Muted>{t('community.aboutScam')}</Muted>

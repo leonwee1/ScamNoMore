@@ -43,6 +43,8 @@ conservative next steps; it never treats an inconclusive result as safe.
 - Expo SDK 54, React Native, TypeScript, React Navigation
 - `expo-image-picker` for image/video selection, `expo-document-picker` for
   MP3/M4A/WAV and other audio files, and `expo-audio` for recording
+- `expo-speech-recognition` for the optional multilingual wake phrase and
+  hands-free commands
 - Node.js + TypeScript backend, OpenAI vision/text and Whisper APIs
 - SQLite (`better-sqlite3`) for submitted reports and community messages
 
@@ -50,6 +52,22 @@ conservative next steps; it never treats an inconclusive result as safe.
 
 The phone runs the Expo app through **Expo Go**. The QR code you scan is the QR
 code printed by `npx expo start`; it is not the backend health-check URL.
+
+The existing buttons and all normal app functionality continue to work in Expo
+Go. The hands-free wake phrase requires a development build because speech
+recognition is a custom native module. After installing dependencies, build the
+native client once:
+
+```powershell
+npx expo install expo-dev-client
+npx expo prebuild
+npx expo run:android --device   # Android, or npx expo run:ios --device on macOS
+```
+
+Then start the bundler for that client with `npx expo start --dev-client`.
+Grant microphone and speech-recognition permission when prompted. The selected
+app language controls the wake phrase and command language; if the device does
+not provide a recognizer for that language, the existing buttons remain usable.
 
 ### Recommended: use the shared Render backend
 

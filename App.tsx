@@ -1,4 +1,4 @@
-import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
@@ -9,6 +9,7 @@ import { RootNavigator } from './src/navigation';
 import { api } from './src/services/api';
 import { TextScaleProvider } from './src/textScale';
 import { colors } from './src/theme';
+import { VoiceAssistantProvider } from './src/components/VoiceAssistantProvider';
 
 const navTheme = {
   ...DefaultTheme,
@@ -51,15 +52,18 @@ const ReportsHydrator: React.FC = () => {
 };
 
 export default function App() {
+  const navigationRef = useNavigationContainerRef<any>();
   return (
     <SafeAreaProvider>
       <I18nProvider>
         <TextScaleProvider>
           <View style={Platform.OS === 'web' ? styles.webPhoneFrame : styles.nativeFrame}>
-            <NavigationContainer theme={navTheme}>
-              <StatusBar style="dark" />
-              <ReportsHydrator />
-              <RootNavigator />
+            <NavigationContainer ref={navigationRef} theme={navTheme}>
+              <VoiceAssistantProvider navigationRef={navigationRef as any}>
+                <StatusBar style="dark" />
+                <ReportsHydrator />
+                <RootNavigator />
+              </VoiceAssistantProvider>
             </NavigationContainer>
           </View>
         </TextScaleProvider>

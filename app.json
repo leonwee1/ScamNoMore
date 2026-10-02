@@ -17,16 +17,21 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSCameraUsageDescription": "ScamNoMore uses the camera to analyze suspicious images and videos.",
-        "NSMicrophoneUsageDescription": "ScamNoMore uses the microphone to analyze suspicious voice recordings.",
-        "NSPhotoLibraryUsageDescription": "ScamNoMore accesses your library to analyze suspicious screenshots and videos."
-      }
+        "NSMicrophoneUsageDescription": "ScamNoMore uses the microphone for hands-free voice commands.",
+        "NSPhotoLibraryUsageDescription": "ScamNoMore accesses your library to analyze suspicious screenshots and videos.",
+        "NSSpeechRecognitionUsageDescription": "ScamNoMore uses speech recognition for hands-free voice commands.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.leonwee1.scamnomore"
     },
     "android": {
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "READ_EXTERNAL_STORAGE"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "package": "com.anonymous.scamnomore"
     },
     "plugins": [
       "expo-image-picker",
@@ -36,11 +41,21 @@
           "microphonePermission": "ScamNoMore uses the microphone to analyze suspicious voice recordings."
         }
       ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "ScamNoMore uses the microphone for hands-free voice commands.",
+          "speechRecognitionPermission": "ScamNoMore uses speech recognition for hands-free voice commands."
+        }
+      ],
       "expo-secure-store"
     ],
     "extra": {
       "apiBaseUrl": "https://scamnomore.onrender.com",
-      "appSecret": "7U2VFmvfxQfLbVCA0dXadBz1CoJx7egC"
+      "appSecret": "7U2VFmvfxQfLbVCA0dXadBz1CoJx7egC",
+      "eas": {
+        "projectId": "0b9fcfb6-cac4-4995-91cb-39b1e9a6536a"
+      }
     }
   }
 }

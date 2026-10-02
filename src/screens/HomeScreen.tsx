@@ -11,6 +11,7 @@ import { useDomain } from '../i18n/useDomain';
 import { colors, font, radius, spacing } from '../theme';
 import { scaled, useTextScale } from '../textScale';
 import { daysAgo, deviceToday, singaporeGreetingPeriod } from '../services/dates';
+import { subscribeVoiceActions } from '../services/voiceBus';
 
 type ActionGroup = 'text' | 'voice' | 'video';
 
@@ -25,6 +26,10 @@ export const HomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [expandedGroup, setExpandedGroup] = useState<ActionGroup | null>(null);
   const [storeVersion, setStoreVersion] = useState(0);
   useEffect(() => scamStore.subscribe(() => setStoreVersion((version) => version + 1)), []);
+  useEffect(() => subscribeVoiceActions((action) => {
+    if (action === 'checkMessage') setExpandedGroup('text');
+    if (action === 'checkVoice') setExpandedGroup('voice');
+  }), []);
   const today = deviceToday();
   const latestCaseCutoff = daysAgo(1);
   const latestVerified = useMemo(
