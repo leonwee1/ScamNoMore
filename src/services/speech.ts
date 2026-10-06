@@ -90,7 +90,7 @@ async function voices(): Promise<Speech.Voice[]> {
  *    most likely thing to have been picked before.
  *  - "eloquence" is iOS's legacy 1980s synthesiser. Unmistakably robotic.
  */
-export function scoreVoice(v: Speech.Voice): number {
+function scoreVoiceQuality(v: Speech.Voice): number {
   const tag = `${v.identifier ?? ''} ${v.name ?? ''}`.toLowerCase();
   let s = 0;
 
@@ -101,10 +101,21 @@ export function scoreVoice(v: Speech.Voice): number {
   if (/eloquence|espeak|pico/.test(tag)) s -= 40;
   if (/local/.test(tag)) s -= 3;
 
-  // The app's assistant is intended to use Hans' male voice.  Voice gender is
-  // not exposed consistently by browser/OS speech APIs, so prefer the gender
-  // markers and common male voice names that are available in their catalogues
-  // while avoiding voices explicitly labelled female.
+  return s;
+}
+
+/**
+ * Browser-only preference. Browsers expose a much larger and more varied
+ * catalogue than Expo's native speech bridge, so on web we can additionally
+ * prefer voices that are explicitly labelled male. Keep this out of the
+ * native path: before voice commands were added, Expo selected the clearest
+ * voice in the phone's first matching locale, and changing that ordering
+ * unexpectedly changed the voice users already knew.
+ */
+export function scoreVoice(v: Speech.Voice): number {
+  let s = scoreVoiceQuality(v);
+  const tag = `${v.identifier ?? ''} ${v.name ?? ''}`.toLowerCase();
+
   if (/\bmale\b|\bman\b|男声|男士|ஆண்|lelaki|andrew|arthur|alex|daniel|david|fred|james|john|mark|guy|rishi|yunxi|yunjian|yunyang|kangkang/.test(tag)) s += 60;
   if (/\bfemale\b|\bwoman\b|女声|女士|பெண்|wanita|ava|fiona|hazel|jenny|karen|moira|samantha|susan|tessa|victoria|zira|ting[- ]?ting|sin[- ]?ji|mei[- ]?jia|xiaoxiao/.test(tag)) s -= 60;
 
@@ -117,6 +128,38 @@ export function scoreVoice(v: Speech.Voice): number {
 export async function chooseVoice(lang: Lang): Promise<ChosenVoice> {
   const all = await voices();
   const prefs = LOCALES[lang];
+
+  // Preserve Expo Go's pre-voice-command behaviour. Native voice catalogues
+  // are device-specific and often contain several voices for one language.
+  // The old policy selected the first preferred locale that exists, then the
+  // clearest voice in that locale. This is intentionally not replaced by the
+  // browser's global male-voice ranking, because doing so changes the voice
+  // heard on an otherwise unchanged phone after installing a JS update.
+  if (Platform.OS !== 'web') {
+    for (const locale of prefs) {
+      const prefix = locale.toLowerCase();
+      const localeMatches = all.filter((voice) => {
+        const language = voice.language?.toLowerCase().replace('_', '-') ?? '';
+        return language.startsWith(prefix);
+      });
+      if (localeMatches.length === 0) continue;
+
+      const best = localeMatches
+        .slice()
+        .sort((a, b) => scoreVoiceQuality(b) - scoreVoiceQuality(a))[0];
+      console.log(
+        `TTS ${lang}: "${best.name ?? best.identifier}" (${best.language}, ` +
+          `quality=${best.quality}, native locale=${locale}) from ` +
+          `${localeMatches.length} candidate(s)`
+      );
+      // Return the preferred locale bucket, as the previous implementation
+      // did. Passing the device voice identifier keeps the selected native
+      // voice while avoiding a locale substitution by Expo.
+      return { locale, identifier: best.identifier };
+    }
+
+    return { locale: prefs[0] };
+  }
 
   const matches = all.flatMap((voice) => {
     const language = voice.language?.toLowerCase().replace('_', '-') ?? '';
@@ -138,7 +181,14 @@ export async function chooseVoice(lang: Lang): Promise<ChosenVoice> {
       `TTS ${lang}: "${best.name ?? best.identifier}" (${best.language}, ` +
         `quality=${best.quality}, score=${scoreVoice(best)}) from ${matches.length} candidate(s)`
     );
-    return { locale: prefs[bestMatch.localeIndex], identifier: best.identifier };
+    // Keep the browser voice's own locale instead of only passing the preferred
+    // locale bucket. Browser engines can otherwise substitute a different
+    // voice when the requested bucket (for example en-SG) is not the voice's
+    // actual locale.
+    return {
+      locale: best.language?.replace('_', '-') || prefs[bestMatch.localeIndex],
+      identifier: best.identifier,
+    };
   }
 
   // No installed voice matched. Hand back the preferred locale anyway and let

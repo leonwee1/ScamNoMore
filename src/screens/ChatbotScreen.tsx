@@ -43,6 +43,119 @@ const TRUSTED_SOURCE_HOSTS = new Set([
 
 const ASSISTANT_LINK_PATTERN = /\[([^\]]+)\]\((https:\/\/[^)\s]+)\)|https:\/\/[^\s<>"')]+/gi;
 
+const WEB_KEY_ROWS = [
+  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+  ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
+] as const;
+
+const WEB_SYMBOL_ROWS = [
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+  ['@', '#', '$', '%', '&', '*', '-', '_', '(', ')'],
+  ['?', '!', "'", '"', ':', ';', '/', '+', '=', '…'],
+] as const;
+
+/** A compact, optional keyboard for desktop browsers without an OS keyboard. */
+const WebChatKeyboard: React.FC<{
+  shift: boolean;
+  symbols: boolean;
+  onShift: () => void;
+  onSymbols: () => void;
+  onKey: (key: string) => void;
+  onFocusInput: () => void;
+}> = ({ shift, symbols, onShift, onSymbols, onKey, onFocusInput }) => {
+  const rows = symbols ? WEB_SYMBOL_ROWS : WEB_KEY_ROWS;
+  return (
+  <View style={styles.webKeyboard} accessibilityLabel="On-screen keyboard">
+    {rows.map((row, rowIndex) => (
+      <View key={rowIndex} style={styles.webKeyboardRow}>
+        {rowIndex === 2 && !symbols ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Shift"
+            onPressIn={onFocusInput}
+            onPress={onShift}
+            style={[styles.webKeyboardKey, styles.webKeyboardModifier, shift && styles.webKeyboardModifierActive]}
+          >
+            <Text style={styles.webKeyboardKeyText}>⇧</Text>
+          </Pressable>
+        ) : null}
+        {row.map((key) => (
+          <Pressable
+            key={key}
+            accessibilityRole="button"
+            accessibilityLabel={shift && !symbols ? key.toUpperCase() : key}
+            onPressIn={onFocusInput}
+            onPress={() => onKey(shift && !symbols ? key.toUpperCase() : key)}
+            style={styles.webKeyboardKey}
+          >
+            <Text style={styles.webKeyboardKeyText}>{shift && !symbols ? key.toUpperCase() : key}</Text>
+          </Pressable>
+        ))}
+        {rowIndex === 2 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Backspace"
+            onPressIn={onFocusInput}
+            onPress={() => onKey('backspace')}
+            style={[styles.webKeyboardKey, styles.webKeyboardModifier]}
+          >
+            <Text style={styles.webKeyboardKeyText}>⌫</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    ))}
+    <View style={styles.webKeyboardRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={symbols ? 'Letters' : 'Numbers and symbols'}
+        onPressIn={onFocusInput}
+        onPress={onSymbols}
+        style={[styles.webKeyboardKey, styles.webKeyboardModifier]}
+      >
+        <Text style={styles.webKeyboardKeyText}>{symbols ? 'ABC' : '123'}</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Comma"
+        onPressIn={onFocusInput}
+        onPress={() => onKey(',')}
+        style={styles.webKeyboardKey}
+      >
+        <Text style={styles.webKeyboardKeyText}>,</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Space"
+        onPressIn={onFocusInput}
+        onPress={() => onKey(' ')}
+        style={[styles.webKeyboardKey, styles.webKeyboardSpace]}
+      >
+        <Text style={styles.webKeyboardKeyText}>space</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Period"
+        onPressIn={onFocusInput}
+        onPress={() => onKey('.')}
+        style={styles.webKeyboardKey}
+      >
+        <Text style={styles.webKeyboardKeyText}>.</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Enter"
+        onPressIn={onFocusInput}
+        onPress={() => onKey('enter')}
+        style={[styles.webKeyboardKey, styles.webKeyboardEnter]}
+      >
+        <Text style={styles.webKeyboardKeyText}>↵</Text>
+      </Pressable>
+    </View>
+  </View>
+  );
+};
+
 function isTrustedSourceUrl(value: string): boolean {
   try {
     const parsed = new URL(value);
@@ -111,6 +224,12 @@ export const ChatbotScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [webKeyboardVisible, setWebKeyboardVisible] = useState(false);
+  const [webKeyboardShift, setWebKeyboardShift] = useState(false);
+  const [webKeyboardSymbols, setWebKeyboardSymbols] = useState(false);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const inputRef = useRef<TextInput>(null);
+  const keyboardHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   // Re-translate the opening line when the language changes, but only while the
@@ -214,6 +333,43 @@ export const ChatbotScreen: React.FC = () => {
 
   const busy = loading || transcribing;
 
+  const focusWebInput = () => {
+    if (Platform.OS !== 'web') return;
+    if (keyboardHideTimer.current) clearTimeout(keyboardHideTimer.current);
+    setWebKeyboardVisible(true);
+    inputRef.current?.focus();
+  };
+
+  const scheduleWebKeyboardHide = () => {
+    if (Platform.OS !== 'web') return;
+    // Allow a keyboard key's press event to refocus the textbox before hiding
+    // the keyboard when the textbox briefly loses focus on the web.
+    keyboardHideTimer.current = setTimeout(() => setWebKeyboardVisible(false), 180);
+  };
+
+  const pressWebKey = (key: string) => {
+    focusWebInput();
+    const start = Math.max(0, Math.min(selection.start, draft.length));
+    const end = Math.max(start, Math.min(selection.end, draft.length));
+    if (key === 'enter') {
+      void send();
+      return;
+    }
+    if (key === 'backspace') {
+      if (start !== end) {
+        setDraft(`${draft.slice(0, start)}${draft.slice(end)}`);
+        setSelection({ start, end: start });
+      } else if (start > 0) {
+        setDraft(`${draft.slice(0, start - 1)}${draft.slice(end)}`);
+        setSelection({ start: start - 1, end: start - 1 });
+      }
+      return;
+    }
+    const next = `${draft.slice(0, start)}${key}${draft.slice(end)}`;
+    setDraft(next);
+    setSelection({ start: start + key.length, end: start + key.length });
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <KeyboardAvoidingView
@@ -293,6 +449,7 @@ export const ChatbotScreen: React.FC = () => {
           </Pressable>
 
           <TextInput
+            ref={inputRef}
             style={[styles.input, { fontSize: scaled(font.body, scale), lineHeight: scaled(21, scale) }]}
             value={draft}
             onChangeText={setDraft}
@@ -302,6 +459,9 @@ export const ChatbotScreen: React.FC = () => {
             returnKeyType="send"
             editable={!transcribing}
             multiline
+            onFocus={() => setWebKeyboardVisible(Platform.OS === 'web')}
+            onBlur={scheduleWebKeyboardHide}
+            onSelectionChange={(event) => setSelection(event.nativeEvent.selection)}
           />
           <Button
             title={t('chatbot.send')}
@@ -311,6 +471,16 @@ export const ChatbotScreen: React.FC = () => {
             style={{ paddingHorizontal: 18 }}
           />
         </View>
+        {webKeyboardVisible ? (
+          <WebChatKeyboard
+            shift={webKeyboardShift}
+            symbols={webKeyboardSymbols}
+            onShift={() => setWebKeyboardShift((value) => !value)}
+            onSymbols={() => setWebKeyboardSymbols((value) => !value)}
+            onKey={pressWebKey}
+            onFocusInput={focusWebInput}
+          />
+        ) : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -382,4 +552,30 @@ const styles = StyleSheet.create({
     minHeight: 48,
     maxHeight: 120,
   },
+  webKeyboard: {
+    gap: 5,
+    paddingHorizontal: spacing.xs,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surfaceAlt,
+  },
+  webKeyboardRow: { flexDirection: 'row', justifyContent: 'center', gap: 4 },
+  webKeyboardKey: {
+    minWidth: 27,
+    height: 31,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  webKeyboardModifier: { minWidth: 39, backgroundColor: colors.surfaceAlt },
+  webKeyboardModifierActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  webKeyboardSpace: { flex: 1, maxWidth: 190 },
+  webKeyboardEnter: { minWidth: 42, backgroundColor: colors.primary, borderColor: colors.primary },
+  webKeyboardKeyText: { color: colors.text, fontSize: 13, fontWeight: '700' },
 });
